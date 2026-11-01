@@ -512,16 +512,16 @@ def logprob_entry(tok, t, n_top: int) -> dict | None:
 
 
 def model_management_setting(cfg: dict | None, env=None) -> bool:
-    """llama.cpp's model management (/models/load, /models/unload, /models/sse, for Open WebUI's Models page): off
-    unless the run config has "model_management": true or MAYA_MODEL_MANAGEMENT says 1 / on / true / yes;
-    the environment, when set, wins over the config."""
+    """llama.cpp's model management (/models/load, /models/unload, /models/sse: load the model, free its GPU memory,
+    watch its state from an API client or a command): on unless the run config has "model_management": false or
+    MAYA_MODEL_MANAGEMENT says 0 / off / false / no; the environment, when set, wins over the config."""
     on = ("1", "on", "true", "yes")
     env = os.environ if env is None else env
     v = env.get("STRATA_MODEL_MANAGEMENT", env.get("MAYA_MODEL_MANAGEMENT"))
     if v is not None and str(v).strip():
         return str(v).strip().lower() in on
     v = (cfg or {}).get("model_management")
-    return bool(v) if v is not None else False
+    return bool(v) if v is not None else True
 
 
 def loop_guard_setting(cfg: dict | None, env=None) -> bool:
@@ -4628,7 +4628,7 @@ def make_handler(svc: Service):
         def _llamacpp_model(self, op: str):
             """llama.cpp's /models/load and /models/unload: Open WebUI's Models page (load / switch)."""
             if not getattr(svc, "model_management", False):
-                self._json(404, {"error": {"message": "model management is off (\"model_management\": true, or "
+                self._json(404, {"error": {"message": "model management is off (remove \"model_management\": false, or "
                                                       "MAYA_MODEL_MANAGEMENT=1, turns it on)"}})
                 return
             try:
@@ -4666,7 +4666,7 @@ def make_handler(svc: Service):
         def _models_sse(self):
             """llama.cpp's /models/sse: the Models page's live state, a snapshot every few seconds."""
             if not getattr(svc, "model_management", False):
-                self._json(404, {"error": {"message": "model management is off (\"model_management\": true, or "
+                self._json(404, {"error": {"message": "model management is off (remove \"model_management\": false, or "
                                                       "MAYA_MODEL_MANAGEMENT=1, turns it on)"}})
                 return
             if not self._authorized():

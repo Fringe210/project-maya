@@ -2152,13 +2152,14 @@ class ModelManagement(unittest.TestCase):
         finally:
             conn.close()
 
-    def test_off_unless_the_config_turns_it_on(self):
+    def test_on_unless_the_config_turns_it_off(self):
         for method, path in (("POST", "/models/load"), ("POST", "/models/unload"), ("GET", "/models/sse")):
             self.assertEqual(self.call(method, path, {} if method == "POST" else None)[0], 404, path)
         self.assertEqual((self.engine.closes, self.engine.restarts), (0, 0))
         from serve.server import model_management_setting
-        self.assertFalse(model_management_setting({}, env={}))
+        self.assertTrue(model_management_setting({}, env={}))
         self.assertTrue(model_management_setting({"model_management": True}, env={}))
+        self.assertFalse(model_management_setting({"model_management": False}, env={}))
         self.assertFalse(model_management_setting({"model_management": True}, env={"MAYA_MODEL_MANAGEMENT": "0"}))
         self.assertTrue(model_management_setting({}, env={"MAYA_MODEL_MANAGEMENT": "on"}))
 
