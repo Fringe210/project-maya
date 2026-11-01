@@ -321,6 +321,8 @@ Speed reports, bug reports and pull requests are welcome: [CONTRIBUTING.md](CONT
 
 ### One CUDA backend, three model families (Windows)
 
+Validated on the reference PC: one NVIDIA RTX PRO 6000 Blackwell (96 GB) as the CUDA primary, joined by an AMD Radeon PRO W7800 (48 GB) that runs the HIP expert helper, so a single process and a single `build/maya-backend.exe` span both vendors on Windows.
+
 `START-MAYA.bat` selects the installed DeepSeek, GLM or MiniMax weights. All profiles run the same `build/maya-backend.exe` and the same server/dashboard from this checkout; older installations are not launched. Build with `build-unified.bat`.
 
 The optional `maya-hhelper.dll` runs complementary experts on an AMD HIP GPU beside the NVIDIA primary. The Monitor adds a second GPU only when the loaded model actually owns helper slots. See [build, profiles, scope and validation](docs/UNIFIED-BACKEND.md), and [DeepSeek measurements](docs/DS4-CUDA-HIP.md).
