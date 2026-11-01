@@ -427,12 +427,12 @@ class Gguf(unittest.TestCase):
         with patch.object(maya.S, "gpus", return_value=[{"arch": 86}]), patch.object(maya, "choose", pick), \
                 patch.object(maya.S, "UI", None):
             self.assertNotEqual(maya.choose_ds4_quant(args(), {}), "gguf-q4")
-            self.assertTrue(any(r.startswith("DeepSeek V4.1 · UD-Q8_K_XL (508 GB)") for r in rows), rows)
+            self.assertTrue(any(r.startswith("DeepSeek V4.1 · UD-Q8_K_XL (467 GB)") for r in rows), rows)
             self.assertFalse(any("UD-Q4_K_XL" in r for r in rows), rows)
             self.assertEqual(maya.DS4_DEFAULT_QUANT, "gguf-q8")                  # (the default stays a listed one)
             rows.clear()
             self.assertEqual(maya.choose_ds4_quant(args(), {"installer": {"ds4_quant": "gguf-q4"}}), "gguf-q4")
-            self.assertTrue(any(r.startswith("DeepSeek V4.1 · UD-Q4_K_XL (501 GB)") for r in rows), rows)
+            self.assertTrue(any(r.startswith("DeepSeek V4.1 · UD-Q4_K_XL (459 GB)") for r in rows), rows)
             rows.clear()
             self.assertEqual(maya.choose_ds4_quant(args(ds4_quant="gguf-q4"), {}), "gguf-q4")   # (by hand: no menu)
             self.assertEqual(rows, [])
@@ -491,7 +491,7 @@ class Gguf(unittest.TestCase):
             self.assertEqual(sum("UD-IQ1_M" in r for r in rows), 1)
             rows.clear()
             self.assertEqual(maya.choose_ds4_quant(args(), {"installer": {"ds4_quant": "gguf-iq1_s"}}), "gguf-iq1_s")
-            self.assertTrue(any(r.startswith("DeepSeek V4.1 · UD-IQ1_S (233 GB)") for r in rows), rows)
+            self.assertTrue(any(r.startswith("DeepSeek V4.1 · UD-IQ1_S (284 GB)") for r in rows), rows)
             rows.clear()
             self.assertEqual(maya.choose_ds4_quant(args(ds4_quant="gguf-iq2_xxs"), {}), "gguf-iq2_xxs")
             self.assertEqual(rows, [])
@@ -510,7 +510,7 @@ class Gguf(unittest.TestCase):
         names = [r[0] for r in rows]
         i = next(j for j, n in enumerate(names) if "UD-IQ1_M" in n)
         self.assertIn("UD-IQ3_S", names[i + 1])
-        self.assertIn("(250 GB)", names[i])
+        self.assertIn("(301 GB)", names[i])
         for part in ("KLD 0.198", "90.3%", "140 GB", "110 GB", "150 GB"):
             self.assertIn(part, rows[i][1])
         self.assertNotIn("better", rows[i][1])
@@ -583,7 +583,7 @@ class Gguf(unittest.TestCase):
         models, man, pair, table, mk = self._tables()
         src = models / "DeepSeek-V4.1-Flash-1017-Maya-GGUF" / "Maya-XS"
         for n in pair:
-            man["maya"]["quants"]["Maya-XS"]["files"][n] = mk(src / Path(n).name, Path(n).name.encode() * 3)
+            man["maya"]["quants"]["Maya-XS"]["tables"][n] = mk(src / Path(n).name, Path(n).name.encode() * 3)
         d = models / "DeepSeek-V4.1-Flash-1017-GGUF" / "UD-IQ3_S"
         d.mkdir(parents=True)
         real = maya.read_json
@@ -609,18 +609,19 @@ class Gguf(unittest.TestCase):
             self.assertIsNone(maya.ds4_shared_tables("gguf-iq3_s", d, models, full))
 
     def test_shared_tables_maya_after_unsloth(self):
-        """Maya-XS set up where UD-IQ3_S's table shard is whole (size and sha256): its pair of shards is left out and
+        """Maya-S set up where UD-IQ3_S's table shard is whole (size and sha256): its pair of shards is left out and
         unsloth's shard is read; its own pair there already, or unsloth's shard damaged: nothing to share."""
-        models, man, pair, table, mk = self._tables()
+        models, man, _, table, mk = self._tables()
+        pair = man["abliterated"]["engram"]["from"]["Maya-S"]
         ud = models / "DeepSeek-V4.1-Flash-1017-GGUF" / "UD-IQ3_S" / Path(table).name
         man["quants"]["UD-IQ3_S"]["files"][table] = mk(ud, b"unsloth table")
-        d = models / "DeepSeek-V4.1-Flash-1017-Maya-GGUF" / "Maya-XS"
+        d = models / "DeepSeek-V4.1-Flash-1017-Maya-GGUF" / "Maya-S"
         d.mkdir(parents=True)
         real = maya.read_json
-        full = maya.ds4_gguf_model("maya-xs")
+        full = maya.ds4_gguf_model("maya-s")
         with patch.object(maya, "read_json", lambda p: man if Path(p) == maya.DS4_GGUF_MANIFEST else real(p)), \
                 patch.object(maya, "say", lambda *a: None), patch.object(maya, "ok", lambda *a: None):
-            plan = maya.ds4_shared_tables("maya-xs", d, models, full)
+            plan = maya.ds4_shared_tables("maya-s", d, models, full)
             self.assertEqual(plan["without"], [Path(n).name for n in pair])
             self.assertEqual(len(plan["model"]["files"]), len(full["files"]) - 2)
             self.assertEqual(list(plan["src"]), [ud.name])
@@ -629,11 +630,24 @@ class Gguf(unittest.TestCase):
             self.assertEqual([x.name for x in e.glob("*.gguf")], [ud.name])
             self.assertEqual((e / ud.name).stat().st_ino, ud.stat().st_ino)
             ud.write_bytes(b"x")
-            self.assertIsNone(maya.ds4_shared_tables("maya-xs", d, models, full))     # (unsloth's shard damaged)
+            self.assertIsNone(maya.ds4_shared_tables("maya-s", d, models, full))     # (unsloth's shard damaged)
             ud.write_bytes(b"unsloth table")
             for n in pair:                                                              # (Maya's own pair is there)
-                man["maya"]["quants"]["Maya-XS"]["files"][n] = mk(d / Path(n).name, b"mine" + n.encode())
-            self.assertIsNone(maya.ds4_shared_tables("maya-xs", d, models, maya.ds4_gguf_model("maya-xs")))
+                man["maya"]["quants"]["Maya-S"]["files"][n] = mk(d / Path(n).name, b"mine" + n.encode())
+            self.assertIsNone(maya.ds4_shared_tables("maya-s", d, models, maya.ds4_gguf_model("maya-s")))
+
+    def test_every_quant_takes_maya_tables(self):
+        """Every unsloth GGUF names its table-only shard (left out: Maya's Q6_K tables are read), Maya-XS's tables are the
+        pair beside its model shards, and its model shards are all the quant downloads itself."""
+        for k in ("gguf-q8", "gguf-q4") + maya.DS4_UD:
+            t = maya.ds4_own_table(k)
+            self.assertTrue(t and t.endswith(".gguf"), k)
+            self.assertIn(t, maya.ds4_gguf_model(k)["files"])
+            self.assertEqual(maya.ds4_trim_files(maya.ds4_gguf_model(k), [t])["files"].keys() & {t}, set())
+        man = json.loads(maya.DS4_GGUF_MANIFEST.read_text(encoding="utf-8"))
+        names = man["abliterated"]["engram"]["from"]["Maya-XS"]
+        self.assertTrue(set(names) <= set(maya.ds4_tier_files(man["maya"], "Maya-XS")))
+        self.assertFalse(any(Path(n).name in maya.ds4_gguf_model("maya-xs")["files"] for n in names))
 
     def test_share_file_fallbacks(self):
         """The one copy: a hard link, else a symbolic link, else a copy (with room for it); a file there already stays."""
@@ -830,7 +844,7 @@ class Abliterated(unittest.TestCase):
             f = src / Path(n).name
             f.write_bytes(Path(n).name.encode() * 3)
             small[n] = [f.stat().st_size, hashlib.sha256(f.read_bytes()).hexdigest()]
-        man["maya"]["quants"]["Maya-XS"]["files"].update(small)
+        man["maya"]["quants"]["Maya-XS"]["tables"].update(small)
         d = models / "DeepSeek-V4.1-Flash-1017-abliterated-GGUF" / "Mix-128G"
         d.mkdir(parents=True)
         real = maya.read_json
