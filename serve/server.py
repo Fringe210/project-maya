@@ -414,6 +414,34 @@ THINK_NOTE = ("[The server's note, not the user: your thinking was cut off there
 _THINK_BOUNDARY = re.compile(r"(?:\n|(?<![\d.])[.!?][\"')\]]*|[。！？])[ \t]*$")
 
 
+_WEAK_BOUNDARY = re.compile(r"[.!?][\"')\]]*[ \t]*")
+
+
+def think_stop_tables(tok) -> str:
+    """The engine's soft close (#746): the ids that end a sentence or line, as GEN keys - `think_stop` (the token's own
+    text ends one), `think_weak` (a bare . ! ? : one only when the token before does not end in a digit or a dot) and
+    `think_dig` (the tokens that end in a digit or a dot).  "" for a tokenizer with no token list."""
+    n = len(getattr(tok, "tokens", None) or ())
+    if not n:
+        return ""
+    stop, weak, dig = [], [], []
+    for t in range(n):
+        try:
+            text = tok.decode([t])
+        except Exception:
+            continue
+        if not text:
+            continue
+        if text[-1].isdigit() or text[-1] == ".":
+            dig.append(t)
+        if _WEAK_BOUNDARY.fullmatch(text):
+            weak.append(t)
+        elif think_boundary(text):
+            stop.append(t)
+    j = lambda v: ",".join(map(str, v))
+    return f" think_stop={j(stop)} think_weak={j(weak)} think_dig={j(dig)}" if stop or weak else ""
+
+
 def think_boundary(text: str) -> bool:
     """The reasoning so far (its last characters will do) ends a line or a sentence: a newline, or . ! ? after
     something other than a digit or another dot (not "3." of "3.0", not "..."), closing quotes or brackets allowed
@@ -1110,6 +1138,9 @@ class StrataEngine:
         tb, te = sampling.get("_think_budget"), sampling.get("_think_end")   # the run config's (StrataService.run)
         think = f" think_budget={tb} think_end={te}" if isinstance(tb, int) and isinstance(te, int) and tb > 0 and \
             te >= 0 else ""
+        soft, stops = sampling.get("_think_soft"), sampling.get("_think_stops")
+        if think and isinstance(soft, int) and soft > 0 and isinstance(stops, str) and stops:
+            think += f" think_soft={soft}{stops}"   # (#746: the engine closes at the sentence's end, a prefix of the state)
         # setup's calibration (tools/calibrate.py): engine settings for this request only, measured without a restart
         tune, tune_keys = sampling.get("strata_tune"), ""
         if isinstance(tune, dict):
@@ -3257,8 +3288,11 @@ class Service:
             smp.pop("_think_budget", None)
             smp.pop("_think_end", None)
             smp.pop("_think_soft", None)
+            smp.pop("_think_stops", None)
         else:
             smp["_think_budget"] = max(1, tb - len(produced))
+            if isinstance(smp.get("_think_soft"), int):
+                smp["_think_soft"] = max(1, smp["_think_soft"] - len(produced))
         return smp
 
     def _loop_guard_on(self, sampling) -> bool:
@@ -3673,6 +3707,12 @@ class Service:
                     sampling = {**(sampling or {}), "_think_budget": think_budget, "_think_end": self.think_end_id}
                     if soft is not None:
                         sampling["_think_soft"] = soft
+                        if getattr(self.template, "deepseek", False):
+                            stops = getattr(self, "_think_stops", None)
+                            if stops is None:
+                                stops = self._think_stops = think_stop_tables(self.tok)
+                            if stops:
+                                sampling["_think_stops"] = stops
                 # MAYA_DS4_RESTORE_POINTS: where the DeepSeek engine keeps restore points for this prompt (never a
                 # client's own `_restore`; not with pictures, whose spans the engine reads whole)
                 if sampling and "_restore" in sampling:
@@ -3812,7 +3852,7 @@ class Service:
                                 if answered and thinks and self.think_end_id is not None:
                                     ids_k, thinks = [*ids_k, self.think_end_id], False
                                     sampling = {k: v for k, v in (sampling or {}).items()
-                                                if k not in ("_think_budget", "_think_soft", "_think_end")}
+                                                if k not in ("_think_budget", "_think_soft", "_think_end", "_think_stops")}
                                 steer = self.tok.encode(loop_guard.keep_steer(kept)) if thinks else []
                                 seg["next"] = list(seg["prompt"]) + seg["ids"] + ids_k + steer
                                 sampling = loop_guard.block_sampling(sampling, kept)
