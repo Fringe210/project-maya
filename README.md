@@ -25,6 +25,9 @@ them as you chat. It measures your GPUs, CPU, RAM and SSD and tunes itself to th
 
 - **Fast:** up to 149 tokens/s on two RTX 5090s and an RTX 4090, 124 on two H100s, 118 on four RTX 4090s, 81 on one
   RTX PRO 6000, 30+ on a single RTX 5090. [Real numbers from real users](#how-fast-is-it).
+- **NVIDIA and AMD together:** one CUDA primary and an AMD HIP expert helper serve the same model through one
+  process. Validated pairing: **RTX PRO 6000 Blackwell 96 GB + Radeon PRO W7800 48 GB**. See
+  [One CUDA backend](#one-cuda-backend-three-model-families-windows).
 - **Close to the original:** Maya's own quants of GLM-5.3-Flash keep 97.7-99.2% of the FP8 model's zero-shot
   accuracy; DeepSeek V4.1 · Maya-S picks the same next token as the original 92.6% of the time, MiniMax M3.1 · Maya-S
   87.6% (the average over its categories).
@@ -321,7 +324,9 @@ Speed reports, bug reports and pull requests are welcome: [CONTRIBUTING.md](CONT
 
 ### One CUDA backend, three model families (Windows)
 
-Validated on the reference PC: one NVIDIA RTX PRO 6000 Blackwell (96 GB) as the CUDA primary, joined by an AMD Radeon PRO W7800 (48 GB) that runs the HIP expert helper, so a single process and a single `build/maya-backend.exe` span both vendors on Windows.
+> **Validated on the reference PC:** one **NVIDIA RTX PRO 6000 Blackwell (96 GB)** as the CUDA primary, joined by an
+> **AMD Radeon PRO W7800 (48 GB)** that runs the HIP expert helper — both serve the same model through a single
+> process and a single `build/maya-backend.exe`.
 
 `START-MAYA.bat` selects the installed DeepSeek, GLM or MiniMax weights. All profiles run the same `build/maya-backend.exe` and the same server/dashboard from this checkout; older installations are not launched. Build with `build-unified.bat`.
 
