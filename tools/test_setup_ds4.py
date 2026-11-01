@@ -743,6 +743,99 @@ class Gguf(unittest.TestCase):
                 maya.ds4_unused(m, d)
             self.assertIn("10 files of an earlier layout of the model, not used", warned[0])
 
+    def _small_manifest(self):
+        """The real manifest with every Maya file's size shrunk to a few bytes (sizes differ per file), patched in."""
+        man = json.loads(maya.DS4_GGUF_MANIFEST.read_text(encoding="utf-8"))
+        n = 0
+        for q in man["maya"]["quants"].values():
+            for files in ([q.get("files") or {}, q.get("tables") or {}] + [e["files"] for e in q.get("earlier") or []]
+                          + [s for e in q.get("earlier") or [] for s in e.get("engram") or []]):
+                for k in sorted(files):
+                    n += 1
+                    files[k][0] = n
+        tmp = Path(tempfile.mkdtemp())
+        p = tmp / "download_gguf.json"
+        p.write_text(json.dumps(man), encoding="utf-8")
+        d = tmp / "Maya-XS"
+        d.mkdir()
+        return p, d
+
+    def _fill(self, d, files):
+        for n, v in files.items():
+            (d / n).write_bytes(b"x" * v)
+
+    def test_maya_xs_v1_is_upgraded_to_v2(self):
+        """Maya-XS v1 whole: not used as it is - v2's 3 model shards are the download, the table shards 4-5 are kept
+        (not re-downloaded), and the old model shards 1-3 of 00005 go only once v2 is whole."""
+        p, d = self._small_manifest()
+        with patch.object(maya, "DS4_GGUF_MANIFEST", p):
+            m = maya.ds4_gguf_model("maya-xs")
+            (e,) = m["earlier"]
+            self.assertTrue(e["upgrade"])
+            self.assertEqual(len(m["files"]), 3)
+            self.assertTrue(all("-v2-" in n and n.endswith("-of-00003.gguf") for n in m["files"]))
+            self.assertEqual(sorted(m["tables"]), sorted(n for n in e["files"] if n.endswith(("4-of-00005.gguf", "5-of-00005.gguf"))))
+            self._fill(d, e["files"])                          # the old layout, whole
+            self.assertIsNone(maya.ds4_earlier(m, d))          # (not "used as it is")
+            self.assertIs(maya.ds4_upgrade_from(m, d)["revision"] == e["revision"] and True, True)
+            said = []
+            with patch.object(maya, "say", said.append):
+                maya.ds4_upgrade_note(m, d)
+            self.assertEqual(len(said), 1)
+            self.assertIn("Updating Maya-XS", said[0])
+            self.assertIn("3 model files", said[0])
+            # the v2 shards are not there yet: nothing is deleted
+            self.assertEqual(maya.ds4_upgrade_drop(e, m, d), [])
+            self.assertTrue(all((d / n).exists() for n in e["files"]))
+            self._fill(d, m["files"])                          # v2 whole
+            with patch.object(maya, "ok", lambda *a: None):
+                gone = maya.ds4_upgrade_drop(e, m, d)
+            self.assertEqual(sorted(gone), sorted(n for n in e["files"] if n not in m["tables"]))
+            self.assertEqual(len(gone), 3)
+            self.assertTrue(all((d / n).exists() for n in m["tables"] + list(m["files"])))
+            self.assertFalse(any((d / n).exists() for n in gone))
+            self.assertIsNone(maya.ds4_upgrade_from(m, d))     # (v2 whole: nothing to upgrade)
+            self.assertIsNone(maya.ds4_earlier(m, d))
+
+    def test_maya_xs_interrupted_upgrade_keeps_the_old_shards(self):
+        """A v2 download cut short (one shard partial) leaves the old Maya-XS whole and in use; the upgrade resumes."""
+        p, d = self._small_manifest()
+        with patch.object(maya, "DS4_GGUF_MANIFEST", p):
+            m = maya.ds4_gguf_model("maya-xs")
+            (e,) = m["earlier"]
+            self._fill(d, e["files"])
+            names = sorted(m["files"])
+            self._fill(d, {n: m["files"][n] for n in names[:2]})
+            (d / names[2]).write_bytes(b"x")                   # cut short
+            self.assertEqual(maya.ds4_upgrade_drop(e, m, d), [])
+            self.assertTrue(all((d / n).exists() for n in e["files"]))
+            self.assertIsNotNone(maya.ds4_upgrade_from(m, d))  # (still the old layout: the upgrade goes on)
+
+    def test_other_earlier_layouts_unchanged(self):
+        """Layouts without "upgrade" (Maya-S's v1.1.16, unsloth's re-shard) keep ds4_earlier's behaviour: used as they
+        are, never an upgrade."""
+        p, d = self._small_manifest()
+        with patch.object(maya, "DS4_GGUF_MANIFEST", p):
+            man = json.loads(p.read_text(encoding="utf-8"))
+            self.assertEqual([e.get("upgrade") for q, v in man["maya"]["quants"].items() for e in v.get("earlier") or []],
+                             [None, True])
+            m = maya.ds4_gguf_model("maya-s")
+            (e,) = m["earlier"]
+            self.assertFalse(e["upgrade"])
+            ds = d.parent / "Maya-S"
+            ds.mkdir()
+            self._fill(ds, e["files"])
+            for s in e["engram"][:1]:
+                eg = d.parent / "Engram"
+                eg.mkdir()
+                self._fill(eg, s["files"])
+            got = maya.ds4_earlier(m, ds)
+            self.assertEqual((sorted(got["files"]), got["layout"]), (sorted(e["files"]), "earlier"))
+            self.assertIsNone(maya.ds4_upgrade_from(m, ds))
+            for quant in ("gguf-q8", "gguf-q4"):
+                um = maya.ds4_gguf_model(quant)
+                self.assertFalse(any(x["upgrade"] for x in um["earlier"]))
+
     def test_gguf_config_with_the_vision_tower(self):
         pc = {"gpus": [{"index": 0}]}
         d = Path(tempfile.mkdtemp())

@@ -4794,8 +4794,10 @@ def ds4_gguf_model(quant: str) -> dict:
     m = form(q["files"], revision)
     if quant in DS4_ABL and q.get("table"):
         m["table"] = Path(q["table"]).name   # (listed in the manifest, never fetched)
-    m["earlier"] = [dict(form(e["files"], e["revision"]), engram=[form(s, e["revision"]) for s in e.get("engram") or []])
+    m["earlier"] = [dict(form(e["files"], e["revision"]), engram=[form(s, e["revision"]) for s in e.get("engram") or []],
+                         upgrade=bool(e.get("upgrade")))
                     for e in q.get("earlier") or []]
+    m["tables"] = [Path(k).name for k in q.get("tables") or {}]   # (shared table shards: kept by an upgrade)
     return m
 
 
@@ -4807,8 +4809,8 @@ def ds4_earlier(m: dict, d: Path) -> dict | None:
     if not any(file_incomplete(m, d / n) for n in m["files"]):
         return None
     for e in m.get("earlier") or []:
-        if any(file_incomplete(e, d / n) for n in e["files"]):
-            continue
+        if e.get("upgrade") or any(file_incomplete(e, d / n) for n in e["files"]):
+            continue                                   # (an "upgrade" layout is replaced: ds4_upgrade_from)
         if not e["engram"]:
             return dict(e, engram=None, layout="earlier")
         eg = d.parent / "Engram"
@@ -4817,12 +4819,51 @@ def ds4_earlier(m: dict, d: Path) -> dict | None:
     return None
 
 
+def ds4_upgrade_from(m: dict, d: Path) -> dict | None:
+    """The earlier layout of m's files that d holds whole and the manifest marks "upgrade": the setup then downloads m's
+    own files instead (keeping the shards both layouts share: m["tables"]) and drops the old ones last
+    (ds4_upgrade_drop).  None: m's own files are whole, or no such layout is there."""
+    if not any(file_incomplete(m, d / n) for n in m["files"]):
+        return None
+    for e in m.get("earlier") or []:
+        if e.get("upgrade") and not any(file_incomplete(e, d / n) for n in e["files"]):
+            return e
+    return None
+
+
+def ds4_upgrade_note(m: dict, d: Path) -> None:
+    """The one line that says an upgrade is under way and how much it downloads."""
+    gb = sum(v for n, v in m["files"].items() if file_incomplete(m, d / n)) / 1e9
+    say(f"  Updating {m['folder']} to its newer version: {gb:.0f} GB to download "
+        f"({len(m['files'])} model files; the n-gram table files you have are kept).")
+
+
+def ds4_upgrade_drop(old: dict, m: dict, d: Path) -> list:
+    """After the upgrade: delete the old layout's files that m does not use (not m's own, not m["tables"]), but only
+    when every one of m's files is whole - an interrupted download leaves the old model working.  The deleted names."""
+    if any(file_incomplete(m, d / n) for n in m["files"]):
+        return []
+    gone = []
+    for n in old["files"]:
+        if n in m["files"] or n in (m.get("tables") or []):
+            continue
+        try:
+            (d / n).unlink()
+            gone.append(n)
+        except OSError as x:
+            warn(f"{d / n}: could not delete the old file ({x}) - you can delete it")
+    if gone:
+        ok(f"the earlier version's {len(gone)} model file{'s' if len(gone) != 1 else ''} deleted")
+    return gone
+
+
 def ds4_unused(m: dict, d: Path) -> None:
     """A note for the files of an earlier layout in d (and its Engram tables beside it), now that m's own are used: the
     user may delete them."""
     for where, names in ((d, [n for e in m.get("earlier") or [] for n in e["files"]]),
                          (d.parent / "Engram", [n for e in m.get("earlier") or [] for s in e["engram"] for n in s["files"]])):
-        names = [n for n in dict.fromkeys(names) if (where / n).exists() and n not in m["files"]]
+        names = [n for n in dict.fromkeys(names) if (where / n).exists() and n not in m["files"]
+                 and n not in (m.get("tables") or [])]
         if names:
             warn(f"{where}: {len(names)} file{'s' if len(names) != 1 else ''} of an earlier layout of the model, not "
                  f"used - you can delete {'them' if len(names) != 1 else 'it'} ({', '.join(names[:2])}"
@@ -5620,6 +5661,9 @@ def set_up_ds4(a, prev: dict) -> Path | None:
     if not gguf:                                       # (the Engram tables from the other EXL3 quant's folder)
         ds4_link_engram(d, m, models, prev)
     old = ds4_earlier(m, d) if gguf else None          # (an earlier layout of the files, whole: used as it is)
+    upgrade = ds4_upgrade_from(m, d) if gguf else None   # (Maya-XS v1 whole: v2 is downloaded, the old model files go last)
+    if upgrade:
+        ds4_upgrade_note(m, d)
     shared = None
     look = gguf and old is None and quant not in DS4_ABL and quant != "maya-xs"
     if look:                                           # (its checks of the other model's tables print under the heading)
@@ -5642,7 +5686,7 @@ def set_up_ds4(a, prev: dict) -> Path | None:
     files = ds4_model_step(a, d, old or m, announce=not look)             # 5
     if files is None:
         return None
-    if gguf and old is None:
+    if gguf and old is None and not upgrade:
         ds4_unused(m, d)
     engram = old and old["engram"]                     # (v1.1.16's Maya-S: its Engram tables beside it)
     without = [m["table"]] if quant in DS4_ABL and m.get("table") else [own_table] if own_table else None
@@ -5672,6 +5716,8 @@ def set_up_ds4(a, prev: dict) -> Path | None:
         else:
             ok("the model's own vision tower runs in the engine: its weights in RAM, no VRAM between pictures (about "
                "320 MB of the first GPU's while one is read); the server resizes the pictures")
+    if upgrade:                                        # (the new files are whole and packed: the old model files go)
+        ds4_upgrade_drop(upgrade, m, d)
     cfg_path = write_config_ds4(a, pc, meta, pack, ctx, models, d, quant, vision)   # 8
     if (drafter or not gguf) and CDS.has_drafter(read_json(cfg_path)):
         how = drafting_choice(a, "The DSpark drafter", "10-30")

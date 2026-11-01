@@ -549,6 +549,7 @@
     "earlier": [
      {
       "_": "Maya-XS v1 (the first release): 5 shards, its n-gram tables in shards 4-5 - used as it is when the folder holds it whole, nothing downloaded again",
+      "upgrade": true,
       "revision": "c273fcbdda76a1db074c2f414cb70edbfca2f2ef",
       "files": {
        "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-IQ1_S-00001-of-00005.gguf": [
