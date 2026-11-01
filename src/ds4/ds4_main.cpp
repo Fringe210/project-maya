@@ -2045,7 +2045,7 @@ int serve(strata::ds4::Model& m, const std::string& eos_list, bool spec, float c
         // is through in its turn, so a short question does not wait a round of long reads' pieces
         const auto one_piece = [&](const Act* a) { return a->r.ids.size() - a->P.done <= read_piece; };
         const auto join_read = [&](Act* a) {
-            if (!one_piece(a)) {
+            if (!read_pieces || !one_piece(a)) {   // (arrival: in the order they came)
                 read_line.push_back(a);
                 return;
             }
@@ -2101,7 +2101,10 @@ int serve(strata::ds4::Model& m, const std::string& eos_list, bool spec, float c
             }
             a->seq = best;
             a->reading = true;
-            if (!read_pieces || !a->P.pics.empty()) {
+            // (arrival reads a prompt whole, unless an answer is running: it then writes tokens between the pieces)
+            const bool answering_now = std::any_of(acts.begin(), acts.end(),
+                                                   [](const std::unique_ptr<Act>& x) { return !x->reading; });
+            if ((!read_pieces && !answering_now) || !a->P.pics.empty()) {
                 read_turn(*a, r.ids.size(), false);
                 if (a->ended) {
                     in.forget(rid);
@@ -2421,7 +2424,10 @@ int serve(strata::ds4::Model& m, const std::string& eos_list, bool spec, float c
             read_line.pop_front();
             const bool alone = read_line.empty() && !answering;
             if (!a->done) read_turn(*a, alone ? a->r.ids.size() : read_piece, alone);
-            if (a->reading && !a->done) read_line.push_back(a);
+            if (a->reading && !a->done) {   // (arrival: the prompt in front keeps its turn, the later ones wait for it)
+                if (read_pieces) read_line.push_back(a);
+                else read_line.push_front(a);
+            }
         };
         std::function<void()> settle;
         // the next turn: a piece once the rounds since the last one are due (piece_due) while a prompt is being read,

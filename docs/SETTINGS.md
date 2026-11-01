@@ -479,7 +479,7 @@ context shares the memory beside the model among the N conversations.
   piece's (a prompt that fits in one piece still goes after one token). A share helps a short answer beside a long
   read (on 3 GPUs, 20: a 24-token answer beside a 101K read done in 15-30 s, not 56 s) but delays the next long
   reads, so it is off: in `tools/ds4/agent_bench.py` it made a turn's first token later.
-  `MAYA_DS4_READ_ORDER=arrival` reads each prompt whole as it comes, the others waiting (as v1.1.34 did). On 3 GPUs
+  `MAYA_DS4_READ_ORDER=arrival` reads each prompt in the order it came, the others waiting (as v1.1.34 did); with an answer running, the prompt is read in pieces and the answer writes between them, so it never stalls for a whole read. On 3 GPUs
   (2x RTX 5090 + RTX 3090, GSQ IQ2_XXS, about half the experts in RAM), `tools/ds4/agent_bench.py` - 4 agents x 8
   turns, 4-12K-token first prompts, tool results of 150-2,000 tokens with one in ten of 5-20K: a turn's first token
   5.23 s on the mean and 13.5 s at p95, against 6.14 and 29.1 s whole; a turn done and the wall the same (20.0 s,
