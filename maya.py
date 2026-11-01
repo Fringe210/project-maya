@@ -4101,7 +4101,7 @@ def server_command(cfg_path: Path, a) -> tuple:
     port = a.port or cfg.get("port") or 8080
     host = a.host or cfg.get("host") or "127.0.0.1"
     key = a.api_key or cfg.get("api_key")
-    cmd = [sys.executable, str(ROOT / "serve" / "server.py"), "--engine", "strata", "--config", str(cfg_path),
+    cmd = [sys.executable, str(ROOT / "serve" / "server.py"), "--engine", "maya", "--config", str(cfg_path),
            "--port", str(port)]
     if a.host:
         cmd += ["--host", a.host]

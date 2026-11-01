@@ -28,7 +28,7 @@ try:
 except ImportError:                                     # (the CI's and setup's environments have it)
     psutil = None
 try:
-    import regex  # noqa: F401  (the GLM tokenizer's, which --engine strata loads: else the mock engine, no process)
+    import regex  # noqa: F401  (the GLM tokenizer's, which --engine maya loads: else the mock engine, no process)
     FAKE_ENGINE = True
 except ImportError:
     FAKE_ENGINE = False
@@ -65,7 +65,7 @@ def fake_config(d: Path) -> Path:
 
 
 def server_cmd(cfg: Path, port: int) -> list:
-    engine = ["--engine", "strata", "--config", str(cfg)] if FAKE_ENGINE else ["--engine", "mock"]
+    engine = ["--engine", "maya", "--config", str(cfg)] if FAKE_ENGINE else ["--engine", "mock"]
     return [sys.executable, str(ROOT / "serve" / "server.py"), *engine, "--port", str(port)]
 
 

@@ -1,7 +1,7 @@
 """serve/server.py - plan v0.3 P8: OpenAI and Anthropic endpoints over any engine that maps token ids to tokens.
 
     python -m serve.server --engine mock --port 8095            (a scripted engine, for clients and tests)
-    python -m serve.server --engine strata --config strata.json --port 8080   (the real engine, resident)
+    python -m serve.server --engine maya --config maya.json --port 8080   (the real engine, resident)
 
 Endpoints: POST /v1/chat/completions and /v1/responses (OpenAI, stream and non-stream), POST /v1/messages (Anthropic, stream and
 non-stream), GET /v1/models, GET /models, GET /props, GET /slots, GET /health, GET /mcp. One sequence at a time behind a FIFO (plan: one resident sequence).
@@ -5838,8 +5838,8 @@ def tee_server_log(path: str) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--engine", choices=["mock", "strata"], default="mock")
-    ap.add_argument("--config", help="strata engine config (JSON: exe, args, cwd, tokenizer, model_name), "
+    ap.add_argument("--engine", choices=["mock", "maya", "strata"], default="mock")   # (strata: the old name, kept for older scripts)
+    ap.add_argument("--config", help="maya engine config (JSON: exe, args, cwd, tokenizer, model_name), "
                                      "written by setup.py")
     ap.add_argument("--host", default=None,
                     help="the address to listen on: 127.0.0.1 = this PC only (the default), 0.0.0.0 = also other devices "
@@ -5871,6 +5871,8 @@ def main() -> int:
                          "when it closes - that program ended, however it ended - the server stops as on Ctrl+C "
                          "(on Linux also when its parent process ends)")
     a = ap.parse_args()
+    if a.engine == "maya":
+        a.engine = "maya"
     maya_names.alias_env(os.environ)   # (MAYA_* settings under the names the code and the engine read)
     cfg = maya_names.env_in(json.loads(Path(a.config).read_text(encoding="utf-8-sig"))) if a.config else {}   # (a BOM: Notepad)
     apply_server_env(cfg)
@@ -5893,15 +5895,15 @@ def main() -> int:
         a.tokenizer = cfg["tokenizer"]
     tok = ByteTokenizer()
     tpath = Path(a.tokenizer)
-    if a.engine == "strata" and not (tpath / "vocab.json").exists():
+    if a.engine == "maya" and not (tpath / "vocab.json").exists():
         ap.error(f"the model's tokenizer is missing ({tpath / 'vocab.json'}); run setup again")
     if (tpath / "vocab.json").exists():
         import strata_tokenizer as ST
         tok = ST.Tokenizer.from_dir(tpath)              # with the pack's own pre-tokenizer (GLM: glm4, #27)
     hub = hub_from_config(cfg, a.mcp_config)            # before the minutes of loading: a bad entry stops here
-    if a.engine == "strata":
+    if a.engine == "maya":
         if not cfg:
-            ap.error("--engine strata needs --config")
+            ap.error("--engine maya needs --config")
         vision = None
         env = child_env(cfg)
         sampling_defaults = sampling_defaults_from_config(cfg)
@@ -5992,7 +5994,7 @@ def main() -> int:
     if getattr(engine, "multi", 0) > 1:                 # n conversations at once: n places in the FIFO
         svc.fifo.set_capacity(engine.multi)
         print(f"[maya] {engine.multi} conversations at once (--parallel)", flush=True)
-    if "reasoning_effort" not in cfg and a.engine == "strata":   # (a config without one: the model's own level)
+    if "reasoning_effort" not in cfg and a.engine == "maya":   # (a config without one: the model's own level)
         cfg = dict(cfg, reasoning_effort=maya_quants.model_defaults(cfg)[1])
     if cfg.get("reasoning_effort") or (svc.template.deepseek and cfg.get("reasoning_effort") is not None):
         try:
