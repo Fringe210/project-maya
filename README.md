@@ -19,7 +19,7 @@ with <b><a href="https://github.com/needmorevram">@needmorevram</a></b></p>
 <sub>Project Maya is free. If it runs well on your PC, sponsoring it pays for the test hardware and the work on it.</sub></p>
 
 Models this size usually need a datacenter. Maya runs three of them on the hardware you already have:
-**GLM-5.3-Flash**, **DeepSeek-V4.1-Flash-1017** and **MiniMax-M3.1-Flash**. Each model has an engine built for it. It
+**GLM-5.3-Flash**, **DeepSeek-V4.1-Flash-1017** and **MiniMax-M3.1-Flash**. Each model has an architecture-specific path in the shared backend. It
 keeps the experts your conversation uses most on the GPU, the next ones in RAM and the rest on your NVMe SSD, and moves
 them as you chat. It measures your GPUs, CPU, RAM and SSD and tunes itself to them. Nothing leaves your machine.
 
@@ -318,3 +318,11 @@ Speed reports, bug reports and pull requests are welcome: [CONTRIBUTING.md](CONT
   bundled in `serve/web/preact.js` with their notices.
 - Maya is open source under the [MIT License](LICENSE); the notices of Strata, ggml, exllamav3 and beellama.cpp stay
   with every copy.
+
+### One CUDA backend, three model families (Windows)
+
+`START-MAYA.bat` selects the installed DeepSeek, GLM or MiniMax weights. All profiles run the same `build/maya-backend.exe` and the same server/dashboard from this checkout; older installations are not launched. Build with `build-unified.bat`.
+
+The optional `maya-hhelper.dll` runs complementary experts on an AMD HIP GPU beside the NVIDIA primary. The Monitor adds a second GPU only when the loaded model actually owns helper slots. See [build, profiles, scope and validation](docs/UNIFIED-BACKEND.md), and [DeepSeek measurements](docs/DS4-CUDA-HIP.md).
+
+GLM measurements and the distinction between decode offload and batched-prefill weight staging are documented in [GLM CUDA/HIP and MTP](docs/GLM-CUDA-HIP.md). On this PC, the optimized no-MTP all-VRAM profile reaches 69.91 tok/s (+25.7% over the previous helper policy), versus the earlier NVIDIA-only 73.75 tok/s reference, using a 268 MiB expert staging tier instead of 22.8 GiB of host expert cache. Adaptive cache admissions still move some weights over PCIe.

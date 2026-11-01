@@ -31,7 +31,15 @@ pause
 exit /b 1
 
 :run
+if /I "%~1"=="--model" goto selectmodel
+if /I "%~1"=="--list" goto selectmodel
+if not "%~1"=="" goto explicit
+:selectmodel
+".venv\Scripts\python.exe" tools\launch_models.py %*
+goto done
+:explicit
 ".venv\Scripts\python.exe" maya.py %*
+:done
 if errorlevel 1 pause
 exit /b
 

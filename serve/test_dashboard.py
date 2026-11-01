@@ -375,6 +375,23 @@ class GpuMap(unittest.TestCase):
         self.assertIsNone(self.gm.parse("INFO context=32768"))
         self.assertEqual(self.gm.pci_key("00000000:0A:00.0"), "0000:0a:00")
 
+    def test_cross_vendor_helper_is_added_without_cuda_index_collision(self):
+        cards = [self.card(23 * GB, {100: 22 * GB}),
+                 {"index": "hip:0", "backend": "hip", "device": 0, "name": "AMD W7800", "total": 48 * GB,
+                  "used": 34 * GB, "pci": None, "procs": None}]
+        info = {"helper_allocated_bytes": 32 * GB, "helper_slots": 2534, "context": 262144}
+        reports = self.gm.with_hip_helper([self.r], cards, info, 0)
+        primary, helper = self.gm.view(reports, cards, engine_pid=100)
+        self.assertEqual(primary["index"], 0)
+        self.assertEqual((helper["index"], helper["name"], helper["role"]), ("hip:0", "AMD W7800", "helper"))
+        self.assertEqual((helper["parts"]["helper"], helper["parts"]["pool"], helper["helper_slots"]), (32 * GB, 0, 2534))
+        self.assertEqual(helper["free"], 14 * GB)
+        self.assertEqual(sum(helper["parts"].values()) + helper["free"], helper["total"])
+        self.assertIsNone(helper["layers"])
+        self.assertEqual(len(self.gm.with_hip_helper([self.r], cards, {}, 0)), 1)
+        self.assertEqual(len(self.gm.with_hip_helper([self.r], [], info, 0)), 1)
+        self.assertEqual(len(self.r), len(reports[0]))  # source report is not mutated on every metrics poll
+
     def test_helper_pool_is_accounted_separately_from_drafter_and_rest(self):
         helper = 20_000_000_000
         r = self.gm.parse(f"VRAM dev=2 pci=0000:0f:00.0 total={32 * GB} free={5 * GB} "
@@ -698,6 +715,7 @@ const live = (o) => ({state: "generating", elapsed_s: 5, ...o});
 const stat = (o) => ({now: {time: now - 1, ...o}});
 const v = (m) => sv.speculationView(m, now);
 const out = {
+  localizedLast: `50% (600 of ${(1200).toLocaleString()})`,
   none: v({engine: eng([]), live: {state: "idle"}, requests: []}),
   noneLive: v({engine: eng([]), live: live({}), tiers: stat({draft_acc: 0, draft_off: 0}), requests: []}),
   specOne: v({engine: eng(["MTP"]), live: live({spec_off: true}), tiers: stat({draft_acc: 0, draft_off: 0}), requests: []}),
@@ -730,7 +748,7 @@ console.log(JSON.stringify(out));""")
         self.assertEqual(got["liveAllKept"]["name"], "DSpark + Lookup")
         self.assertEqual(got["liveRatio"]["text"], "50%")                       # (an engine that gives the share only)
         self.assertEqual(got["zeroKept"]["text"], "0% (0 of 40)")                  # a real 0%: drafted, none kept
-        self.assertEqual(got["last"]["text"], "50% (600 of 1,200)")
+        self.assertEqual(got["last"]["text"], got["localizedLast"])
         self.assertEqual(got["oldServer"]["state"], "none")
 
     def test_experts_on_the_ssd_have_their_bytes_like_the_other_tiers(self):
@@ -754,6 +772,7 @@ st.S.ctxInfo = {...r1m, context: 131072};
 console.log(JSON.stringify({m1: sv.ctxStopsIn(r1m, 131072), m256: sv.ctxStopsIn(r256, 131072, 100000),
                             settings: sv.ctxStops(), none: sv.ctxStopsIn(null, 1),
                             win: sv.ctxHint(16384, {now: 131072, win: 32768, whole: true, ram: sv.GLM_KV_BYTES}),
+                            localizedRam: (1.5).toLocaleString(undefined, {maximumFractionDigits: 1, minimumFractionDigits: 1}),
                             past: sv.ctxHint(131072, {now: 131072, win: 32768, whole: true, ram: sv.GLM_KV_BYTES})}));""")
         self.assertEqual((got["m1"][0], got["m1"][-1]), (4096, 1048576))
         self.assertEqual(got["m1"], got["settings"])                     # (the same stops as Settings > Model's)
@@ -761,7 +780,7 @@ console.log(JSON.stringify({m1: sv.ctxStopsIn(r1m, 131072), m256: sv.ctxStopsIn(
         self.assertIn(100000, got["m256"])
         self.assertEqual(got["none"], [])
         self.assertEqual(got["win"], "Up to 32K the whole cache stays in VRAM.")
-        self.assertTrue(got["past"].startswith("≈ 1.5 GB of RAM for the context"), got["past"])
+        self.assertTrue(got["past"].startswith(f"≈ {got['localizedRam']} GB of RAM for the context"), got["past"])
 
 
 if __name__ == "__main__":

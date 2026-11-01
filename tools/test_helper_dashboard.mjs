@@ -39,9 +39,20 @@ for(const mode of ['helper','failed','plain']) {
  else {
   assert(html.includes('Primary VRAM'));
   assert(html.includes('CPU backing remains available for fallback'));
-  assert(html.includes(mode==='failed'?'Helper unavailable':'1,200 profiled cached experts'));
+  assert(html.includes(mode==='failed'?'Helper unavailable':`${(1200).toLocaleString()} profiled cached experts`));
   assert.equal(html.includes('the helper handles some'), mode==='helper');
  }
 }
+S.metrics={engine:{engine_kind:'glm-fast',expert_vram_complete:1,experts:12096,helper_slots:3096,helper_allocated_bytes:27000000000},tiers:{now:{...now,vram_used:9000,ram_used:32,helper_held:3096,expert_ssd_bytes:0}}};
+const [fullTier]=find(MonitorPage(),'Tiers');const fullHtml=render(fullTier);outputs.fullGpu=fullHtml;
+assert(fullHtml.includes('Experts in GPU memory')&&fullHtml.includes('AMD VRAM'));
+assert(fullHtml.includes('flex-grow:9000')&&fullHtml.includes('flex-grow:3096')&&fullHtml.includes('flex-grow:0'));
+assert(!fullHtml.includes('flex-grow:32')&&!fullHtml.includes('CPU backing remains available'));
+assert(fullHtml.includes('not read from SSD after loading'));
+// AMD keeps the authoritative bytes for NVIDIA's disposable tail cache: count each expert once.
+S.metrics.engine.helper_slots=3096;S.metrics.tiers.now.vram_used=9700;S.metrics.tiers.now.helper_held=2396;
+const [duplicateTier]=find(MonitorPage(),'Tiers');const duplicateHtml=render(duplicateTier);outputs.fullGpuCopies=duplicateHtml;
+assert(duplicateHtml.includes('flex-grow:9700')&&duplicateHtml.includes('flex-grow:2396')&&!duplicateHtml.includes('flex-grow:3096'));
+assert(duplicateHtml.includes('700 additional AMD experts also cached on NVIDIA'));
 if(out)writeFileSync(out,JSON.stringify(outputs,null,2)+'\n');
-console.log('PASS: actual Preact tier output, helper/failed/plain states; counts unchanged.');
+console.log('PASS: actual Preact tier output, helper/failed/plain and full-GPU GLM states; ownership and backing kept separate.');

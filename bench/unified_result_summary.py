@@ -1,0 +1,38 @@
+"""Collect the real-model artifacts for this checkout; no model or benchmark is run."""
+from pathlib import Path
+import json,hashlib
+ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'bench/results/2026-10-31-unified'
+def read(label):return json.loads((OUT/(label+'.json')).read_text(encoding='utf-8-sig'))
+def aggregate(labels,count=4):
+ rows=[read(f'{label}-{i}') for label in labels for i in range(count)]
+ ts=[r['response']['timings'] for r in rows]
+ assert all(t['predicted_n']==320 for t in ts),ts
+ total=sum(t['predicted_n'] for t in ts);ms=sum(t['predicted_ms'] for t in ts)
+ return {'samples':len(ts),'generated_tokens':total,'decode_ms':ms,'tok_s':total*1000/ms,'drafts':sum(t['draft_n'] for t in ts),'accepted_drafts':sum(t['draft_n_accepted'] for t in ts),'individual_tok_s':[t['predicted_per_second'] for t in ts],'labels':labels}
+def functional(label):
+ r=read(label+'-document');f=read(label+'-followup');assert r['codes_ok'];t=r['response']['timings'];assert t['prompt_n']>=16000,t
+ return {'codes_ok':True,'prompt_sha256':r['prompt_sha256'],'prefill':t,'followup':f['response']['timings'],'reused_tokens':f['response']['usage']['prompt_tokens_details']['cached_tokens']}
+def hashes():
+ return {name:{'bytes':(ROOT/name).stat().st_size,'sha256':hashlib.sha256((ROOT/name).read_bytes()).hexdigest()} for name in ['build/maya-backend.exe','build/maya-hhelper.dll']}
+def main():
+ perf={'nvidia_no_mtp':aggregate(['glm-nvidia-nospec'],8),'nvidia_mtp_loaded_bypassed':aggregate(['glm-nvidia-mtp-bypass'],8),'nvidia_mtp2':aggregate(['glm-nvidia-mtp-a-two','glm-nvidia-mtp-b-two']),'nvidia_mtp3':aggregate(['glm-nvidia-mtp-a-three','glm-nvidia-mtp-b-three']),'cuda_hip_no_mtp':aggregate(['glm-vram-measure'],8),'cuda_hip_mtp2':aggregate(['glm-mtp23-a-two','glm-mtp23-b-two']),'cuda_hip_mtp3':aggregate(['glm-mtp23-a-three','glm-mtp23-b-three'])}
+ for mode in ['nvidia_no_mtp','nvidia_mtp_loaded_bypassed']:assert perf[mode]['drafts']==0
+ for mode in ['nvidia_mtp2','nvidia_mtp3','cuda_hip_mtp2','cuda_hip_mtp3']:assert perf[mode]['drafts']>0
+ pc0=read('glm-pcie-before');pc1=read('glm-pcie-after');assert pc1['expert_hip_weight_bytes']==0 and pc1['expert_ssd_bytes']==0
+ gpu=read('glm-mtp23-a-two-initial')['engine'];nv=read('glm-nvidia-nospec-initial')['engine'];mtp=read('glm-nvidia-mtp-a-two-initial')['engine']
+ assert gpu['expert_vram_complete']==1 and gpu['max_context']==nv['max_context']==mtp['max_context']==262144
+ assert float(gpu['ram_gb'])<1 and not nv.get('helper_slots') and not mtp.get('helper_slots')
+ failure=read('glm-vram-failure-fallback')['metrics']['tiers']['now'];assert failure['helper_dead']==1 and failure['helper_fb']>0 and failure['expert_ssd_bytes']==0
+ stage=read('minimax-parity-parity');assert stage['checks']==[['57','0']]
+ accounts=read('minimax-vram-probe');assert accounts['resident_experts_accounted_as_pool']
+ profiles={}
+ for name in ['maya-ds4.json','maya-glm.json','maya-minimax.json']:
+  c=json.loads((ROOT/name).read_text(encoding='utf-8-sig'));assert Path(c['exe'])==ROOT/'build/maya-backend.exe';profiles[name]={'exe':c['exe'],'args':c['args'],'env':c.get('env',{})}
+ assert '--mmap-experts' in profiles['maya-ds4.json']['args'] and profiles['maya-ds4.json']['args'][profiles['maya-ds4.json']['args'].index('--mmap-experts')+1]=='off'
+ assert all(p['args'][p['args'].index('--dspark')+1]=='on' for n,p in profiles.items() if n!='maya-glm.json')
+ assert profiles['maya-minimax.json']['args'][profiles['maya-minimax.json']['args'].index('--kv-cache')+1]=='int8'
+ structured={mode:read(label)['response']['timings'] for mode,label in [('nvidia_no_mtp','glm-nvidia-nospec-structured'),('nvidia_mtp2','glm-nvidia-structured-3'),('nvidia_mtp3','glm-nvidia-structured-4')]}
+ report={'date':'2026-10-31','checkout':str(ROOT),'implementation':'One linked maya-backend.exe, three architecture paths in one process, one shared HIP DLL, common server/UI and model-selection BAT. No dispatch to old standalone binaries.','binaries':hashes(),'production_profiles':profiles,'benchmark_method':{'requests':'Two fixed Italian code prompts, 320 generated tokens, temperature 0, seed 42, reasoning none, one stream. Throughput is total tokens / total decode time, not arithmetic mean of rates.','mtp_comparisons':'Four excluded warmups, ABBA blocks of four requests: eight measurements per MTP cap. spec=3 means two predictions, spec=4 three; adaptation disabled for these controlled tests.','no_mtp':'Separate fresh NVIDIA-only load with NO_MTP=1, four excluded warmups then eight measurements. The loaded-but-bypassed case retains MTP weights/buffers and has a different memory plan from complete unloading.','prefill':'Real README/changelog document with distinct test identifier, ~16384 tokens actually processed, three distributed codes verified and cached follow-up.','structured_output':'One short functional JSON case per mode, squares 1..20, correctness checked. Its rates are illustrative and not an eight-sample throughput benchmark.'},'performance':perf,'functional':{'nvidia_no_mtp':functional('glm-nvidia-nospec'),'nvidia_mtp2':functional('glm-nvidia-mtp2-real'),'nvidia_mtp3':functional('glm-nvidia-mtp3-real'),'cuda_hip_no_mtp':functional('glm-vram-measure'),'deepseek_unified':functional('deepseek-unified'),'minimax_unified':functional('minimax-unified')},'structured_json_timings':structured,'glm_memory':{'nvidia_no_mtp':nv,'nvidia_mtp':mtp,'cuda_hip_mtp':gpu,'units':'Native ram_gb/vram_gb fields are GiB; helper_allocated_bytes is the actual decimal byte count. RAM tier size excludes KV, embeddings, driver memory and other transfer buffers.'},'pcie':{'before':pc0,'after':pc1,'prefill_mean_rx_reduction_percent':100*(1-pc1['phases']['prefill']['mean_rx_mb_s']/pc0['phases']['prefill']['mean_rx_mb_s']),'scope':'Short prompts under 128 tokens use the token path in the CUDA+HIP profile, so no expert weights are downloaded. Activations/routing/results still cross host memory. Large batched prefill still runs on NVIDIA and stages AMD-resident weights; AMD batched expert compute is not implemented.'},'verification':{'python_tests':50,'preact_component':'tools/test_helper_dashboard.mjs: legacy helper/failed/plain plus all-GPU GLM ownership passed','mm3_staging':stage['checks'],'mm3_vram_accounting':accounts['rows'],'native_gpu_logs':['gpu-tests.log','helper-tests.log','glm-vram-readback.log'],'glm_component':'148 real expert pairs with changing input/routing weights, full/partial GPU weight readback byte parity, six invalid ABI calls rejected; common-Hq down output bit-identical. Rare Q8/FP16 rounding boundaries verified per stage, not hidden by a broad output tolerance.','glm_no_backing_fallback':failure},'limits':['All functional context checks use 16K documents and confirm allocated 262K (GLM/DS4) or 128K int8 (MiniMax); no full 262K stress prompt was run.','Cross-vendor GLM was tested at one stream; parallelism was explicitly deferred by the user.','All-GPU mode covers routed experts. Embeddings and KV/transfer buffers still use host RAM. A complete AMD-device loss cannot use GPU-readback CPU fallback.','GLM AMD batched prefill is not implemented. Do not present the current helper as eliminating weight PCIe traffic on long prompts.','The NVIDIA-no-MTP, MTP-loaded and CUDA+HIP deployments allocate memory differently; cross-deployment rates are practical measurements, not an isolated single-switch kernel speedup.','No GitHub fork or release was published; changes remain in the local canonical checkout.']}
+ (OUT/'summary.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+ print(json.dumps({k:round(v['tok_s'],2) for k,v in perf.items()},indent=2))
+if __name__=='__main__':main()

@@ -58,7 +58,7 @@ def merge(lines: list[dict]) -> list[dict]:
         d["free"] = min(d.get("free", 0), r.get("free", 0))
         if d.get("layers") and r.get("layers"):
             d["layers"] = [min(d["layers"][0], r["layers"][0]), max(d["layers"][1], r["layers"][1])]
-    return [by[k] for k in sorted(by)]
+    return sorted(by.values(), key=lambda x: (x.get("role") == "helper", x["dev"]))
 
 
 def as_pids(p) -> set:
@@ -86,7 +86,9 @@ def view(report: list[dict], cards: list[dict] | None, engine_pid, vision_pid=No
     by_pci = {c.get("pci"): c for c in cards if c.get("pci")}
     out = []
     for k, r in enumerate(merge(report)):
-        card = by_pci.get(r.get("pci")) or (cards[k] if k < len(cards) and not by_pci else None)
+        card = (next((c for c in cards if c.get("backend") == "hip" and c.get("device") == r.get("device")), None)
+                if r.get("backend") == "hip" else
+                by_pci.get(r.get("pci")) or (cards[k] if k < len(cards) and not by_pci and not cards[k].get("backend") else None))
         total = (card or {}).get("total") or r.get("total", 0)
         used = (card or {}).get("used")
         procs = (card or {}).get("procs") or {}
@@ -120,6 +122,8 @@ def view(report: list[dict], cards: list[dict] | None, engine_pid, vision_pid=No
             over -= cut
         out.append({"dev": r["dev"], "index": (card or {}).get("index"), "name": (card or {}).get("name"),
                     "total": total, "free": max(0, total - sum(parts.values())), "parts": parts,
+                    "backend": r.get("backend"), "device": r.get("device"), "role": r.get("role"),
+                    "helper_slots": r.get("helper_slots", 0),
                     "window": r.get("window", 0), "drafter": r.get("drafter", 0), "tail": r.get("tail", 0),
                     "borrow": r.get("borrow", 0), "lendable": r.get("vision", 0), "vision_lent": lent,
                     "vision_own": inside,
@@ -127,3 +131,21 @@ def view(report: list[dict], cards: list[dict] | None, engine_pid, vision_pid=No
                     "tp_n": r.get("tp_n", 0),
                     "kv_ram": r.get("kv_ram", 0), "measured": "nvml" if own is not None else "start"})
     return out
+
+
+def with_hip_helper(report, cards, info, device):
+    """Add the independently numbered HIP helper using real adapter readings and the engine's arena size."""
+    report = list(report)
+    allocated = int(info.get("helper_allocated_bytes") or 0)
+    if device is None or allocated <= 0:
+        return report
+    card = next((c for c in cards or [] if c.get("backend") == "hip" and c.get("device") == device), None)
+    if not card or not card.get("total"):
+        return report
+    used = card.get("used")
+    report.append({"dev": -1 - device, "backend": "hip", "device": device, "role": "helper",
+                   "pci": card.get("pci"), "total": card["total"],
+                   "free": max(0, card["total"] - (used if used is not None else allocated)),
+                   "helper": allocated, "helper_slots": int(info.get("helper_slots") or 0),
+                   "slots": 0, "layers": None, "ctx": int(info.get("context") or info.get("max_context") or 0)})
+    return report

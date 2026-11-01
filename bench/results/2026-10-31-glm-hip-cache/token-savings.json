@@ -1,0 +1,101 @@
+{
+ "since": 1793461480.0992935,
+ "models": {
+  "control.json": {
+   "since": 1793461480.099379,
+   "bands": {
+    "base": {
+     "input": 732,
+     "cached": 0,
+     "output": 3840,
+     "requests": 12
+    },
+    "peak": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    }
+   },
+   "model": "glm-5.3-flash",
+   "quant": "Maya-M"
+  },
+  "optimized.json": {
+   "since": 1793461804.4502258,
+   "bands": {
+    "base": {
+     "input": 17419,
+     "cached": 16383,
+     "output": 5164,
+     "requests": 19
+    },
+    "peak": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    }
+   },
+   "model": "glm-5.3-flash",
+   "quant": "Maya-M"
+  },
+  "async.json": {
+   "since": 1793462229.8674426,
+   "bands": {
+    "base": {
+     "input": 17431,
+     "cached": 16383,
+     "output": 5188,
+     "requests": 19
+    },
+    "peak": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    }
+   },
+   "model": "glm-5.3-flash",
+   "quant": "Maya-M"
+  },
+  "backed.json": {
+   "since": 1793462639.3678126,
+   "bands": {
+    "base": {
+     "input": 17431,
+     "cached": 16383,
+     "output": 5188,
+     "requests": 19
+    },
+    "peak": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    }
+   },
+   "model": "glm-5.3-flash",
+   "quant": "Maya-M"
+  },
+  "lfu.json": {
+   "since": 1793463027.24694,
+   "bands": {
+    "base": {
+     "input": 33870,
+     "cached": 16383,
+     "output": 5484,
+     "requests": 20
+    },
+    "peak": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    }
+   },
+   "model": "glm-5.3-flash",
+   "quant": "Maya-M"
+  }
+ },
+ "prices": {}
+}

@@ -325,6 +325,37 @@ __global__ void qk_kernel(float* q, const float* k, const float* v, const float*
     if (host && is_k && kh == 0 && d == 0) hs.tag[row] = p;
 }
 
+// A block owns one ring row. Broadcast its old tag before copying: a late thread
+// must not observe the newly published tag and skip its part of the row.
+__global__ void kv_restore_prefix_kernel(uint16_t* kc, uint16_t* vc, KvQ q, KvHost hs,
+                                         int first, int end, int Hkv) {
+    __shared__ int tag;
+    const int lane = threadIdx.x;
+    const int p = first + blockIdx.x;
+    if (p >= end) return;
+    const int row = p % hs.ring;
+    if (lane == 0) tag = hs.tag[row];
+    __syncthreads();
+    if (tag == p) return;
+    for (int part = 0; part < 2; ++part) {
+        const int fmt = part == 0 ? q.kf : q.vf;
+        const int nc = Hkv * (int) kv_code_bytes(fmt) / 4;
+        uint32_t* dst = fmt == kKvBf16 ? (uint32_t*) (part == 0 ? kc : vc)
+                                      : (uint32_t*) (part == 0 ? q.kc : q.vc);
+        const uint32_t* src = fmt == kKvBf16 ? (const uint32_t*) (part == 0 ? hs.kc : hs.vc)
+                                            : (const uint32_t*) (part == 0 ? hs.q.kc : hs.q.vc);
+        for (int i = lane; i < nc; i += blockDim.x) dst[(size_t) row * nc + i] = src[(size_t) p * nc + i];
+        const int ns = Hkv * (int) kv_scale_bytes(fmt) / 4;
+        if (ns > 0) {
+            dst = (uint32_t*) (part == 0 ? q.ks : q.vs);
+            src = (const uint32_t*) (part == 0 ? hs.q.ks : hs.q.vs);
+            for (int i = lane; i < ns; i += blockDim.x) dst[(size_t) row * ns + i] = src[(size_t) p * ns + i];
+        }
+    }
+    __syncthreads();
+    if (lane == 0) hs.tag[row] = p;
+}
+
 __global__ void index_kernel(float* iq, const float* ik, const float* qn1, const float* kn1, const int* pos, int Hi,
                              int n_rot, const float* inv, float eps, uint16_t* ic) {
     __shared__ float red[33], sh[128];
@@ -2071,6 +2102,12 @@ void qk_norm_rope(float* q, const float* k, const float* v, const float* qn1, co
     qk_kernel<<<dim3(T, Hq + 2 * Hkv), hd, 0, s>>>(q, k, v, qn1, kn1, pos, Hq, Hkv, n_rot, inv, eps, kc, vc, ring, kq,
                                                    hs);
     check("qk_norm_rope");
+}
+void kv_restore_prefix(uint16_t* kc, uint16_t* vc, const KvQ& q, const KvHost& hs,
+                       int prefix, int Hkv, cudaStream_t s) {
+    if (prefix <= 0 || hs.ring <= 0 || Hkv <= 0) return;
+    const int first = std::max(0, prefix - hs.ring);
+    kv_restore_prefix_kernel<<<prefix - first, 128, 0, s>>>(kc, vc, q, hs, first, prefix, Hkv);
 }
 void index_norm_rope(float* iq, const float* ik, const float* qn1, const float* kn1, const int* pos, int T, int Hi,
                      int D, int n_rot, const float* inv, float eps, uint16_t* ic, cudaStream_t s) {

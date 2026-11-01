@@ -1,0 +1,25 @@
+{
+ "since": 1793447965.3921118,
+ "models": {
+  "config-hip.json": {
+   "since": 1793447965.392184,
+   "bands": {
+    "base": {
+     "input": 195707,
+     "cached": 692640,
+     "output": 16750,
+     "requests": 31
+    },
+    "peak": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    }
+   },
+   "model": "deepseek-v4.1-flash",
+   "quant": "Maya-S"
+  }
+ },
+ "prices": {}
+}

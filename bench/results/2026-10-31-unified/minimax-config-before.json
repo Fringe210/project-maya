@@ -1,0 +1,88 @@
+{
+  "exe": "H:\\project-maya-main\\build\\maya-mm3.exe",
+  "args": [
+    "--pack",
+    "H:\\Maya-data\\models\\MiniMax-M3.1-Flash-Maya-S\\maya-mm3",
+    "--max-context",
+    "131072",
+    "--profile",
+    "H:\\project-maya-main\\data\\expert-profile-mm3.bin",
+    "--kv-streaming",
+    "on",
+    "--vision",
+    "on",
+    "--dspark",
+    "on",
+    "--helper",
+    "on",
+    "--helper-gb",
+    "40",
+    "--kv-cache",
+    "int8"
+  ],
+  "cwd": "H:\\project-maya-main",
+  "tokenizer": "H:\\Maya-data\\models\\MiniMax-M3.1-Flash-Maya-S\\maya-mm3\\tokenizer",
+  "model_name": "minimax-m3.1-flash",
+  "gpu": [
+    0
+  ],
+  "sampling": {
+    "temperature": 1.0,
+    "top_p": 0.95
+  },
+  "reasoning_effort": "auto",
+  "lib_dirs": [
+    "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin",
+    "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin\\x64"
+  ],
+  "port": 8080,
+  "log": "H:\\project-maya-main\\maya-minimax-maya-s.log",
+  "installer": {
+    "family": "minimax",
+    "models_dir": "H:\\Maya-data\\models",
+    "quant": "MiniMax-M3.1-Flash-Maya-S",
+    "mm3_quant": "gguf-s",
+    "model_dir": "H:\\Maya-data\\models\\MiniMax-M3.1-Flash-Maya-S",
+    "written": "2026-10-28 19:58",
+    "prefill_calibration": {
+      "date": "2026-10-28 20:49",
+      "version": "1.1.35",
+      "chunk": 4096,
+      "gemm": "blas",
+      "tok_s": 777.3,
+      "default_tok_s": 46.3,
+      "tokens": 4096,
+      "file": "H:\\Maya-data\\models\\MiniMax-M3.1-Flash-Maya-S\\maya-mm3/prefill-tune.txt"
+    },
+    "speed_calibration": {
+      "date": "2026-10-28 21:04",
+      "version": "1.1.35",
+      "dspark_tok_s": 23.29,
+      "no_drafting_tok_s": 17.16,
+      "drafts_accepted": [
+        723,
+        1009
+      ],
+      "tokens": [
+        1152,
+        1152
+      ],
+      "kept": "dspark"
+    },
+    "as_set_up": {
+      "context": 65536,
+      "gpus": [
+        0
+      ],
+      "env": {},
+      "images": true,
+      "parallel": 1,
+      "draft": "dspark",
+      "tp": 0,
+      "kv_cache": "int8",
+      "kv_streaming": true,
+      "kv_resident": null,
+      "cpu_threads": null
+    }
+  }
+}

@@ -37,9 +37,11 @@
 #include "mm3_geo.hpp"
 #include "mm3_gguf.cuh"
 #include "mm3_gguf_host.hpp"
+#include "mm3_helper.h"
 #include "mm3_kernels.cuh"
 #include "mm3_lane_plan.hpp"
 #include "mm3_os.hpp"
+#include "mm3_prefill_staging.hpp"
 #include "mm3_tp.hpp"
 #include "mm3_vision.hpp"
 
@@ -107,10 +109,65 @@ struct Layer {
     std::vector<int> res_ids;      // slot -> expert
     uint8_t* res_base = nullptr;   // the resident region: res_ids.size() blobs, blob bytes apart
     std::vector<const uint8_t*> host_blob;   // expert -> its assembled blob in the pinned pool (null: none)
+    std::vector<int> hlp_slot;     // expert -> its slot in the helper's arena (-1 or empty: not the helper's)
     // host-free (every routed expert of the layer in VRAM): the decode's plan made on the device from exp_tab (expert ->
     // its blob's device address) - no wait for the routing, no round trip through the host
     bool hf = false;
     unsigned long long* exp_tab = nullptr;
+};
+
+// the cross-vendor expert helper (Options::helper): a HIP build's DLL behind mm3_helper.h's C ABI, loaded by name so a
+// CUDA build does not link it and a PC without the second card's build simply runs without it
+struct HelperDll {
+    HMODULE mod = nullptr;
+    mm3h* h = nullptr;
+    int (*open)(int, int, int, mm3h**, char*, size_t) = nullptr;
+    int (*layout)(mm3h*, int, const void*, size_t, size_t, char*, size_t) = nullptr;
+    int (*reserve)(mm3h*, int, size_t, char*, size_t) = nullptr;
+    int (*upload)(mm3h*, int, int, const void*, size_t, char*, size_t) = nullptr;
+    int (*round)(mm3h*, const mm3h_layer*, int, char*, size_t) = nullptr;
+    int (*submit)(mm3h*, const mm3h_layer*, int, char*, size_t) = nullptr;
+    int (*wait)(mm3h*, char*, size_t) = nullptr;
+    void (*get_stats)(mm3h*, mm3h_stats*) = nullptr;
+    void (*close)(mm3h*) = nullptr;
+    bool load(const std::string& path, std::string& err) {
+#if defined(_WIN32)
+        mod = LoadLibraryExA(path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+        if (mod == nullptr) {
+            err = path + ": error " + std::to_string((int) GetLastError());
+            return false;
+        }
+        const auto get = [&](const char* n) { return (void*) GetProcAddress(mod, n); };
+        open = (decltype(open)) get("mm3h_open");
+        layout = (decltype(layout)) get("mm3h_layout");
+        reserve = (decltype(reserve)) get("mm3h_reserve");
+        upload = (decltype(upload)) get("mm3h_upload");
+        round = (decltype(round)) get("mm3h_round");
+        submit = (decltype(submit)) get("mm3h_submit");
+        wait = (decltype(wait)) get("mm3h_wait");
+        get_stats = (decltype(get_stats)) get("mm3h_get_stats");
+        close = (decltype(close)) get("mm3h_close");
+        if (!open || !layout || !reserve || !upload || !round || !submit || !wait || !get_stats || !close) {
+            err = path + ": not the expert helper's ABI";
+            FreeLibrary(mod);
+            mod = nullptr;
+            return false;
+        }
+        return true;
+#else
+        (void) path;
+        err = "not on this platform";
+        return false;
+#endif
+    }
+    void release() {
+        if (h && close) close(h);
+        h = nullptr;
+#if defined(_WIN32)
+        if (mod) FreeLibrary(mod);
+#endif
+        mod = nullptr;
+    }
 };
 
 struct Dev {
@@ -133,6 +190,7 @@ struct Dev {
     // the promotions (Options::promote): a slot being filled on the copy stream (pending: its key, its event) is no
     // one's until the copy is done
     cudaStream_t cs = nullptr;
+    PrefillStaging prefill_stage;
     std::vector<cudaEvent_t> slot_ev;
     std::vector<long long> slot_pend;    // the key a pending slot will hold (-1: none)
     std::vector<long long> slot_iss;     // the forward at whose end its copy began
@@ -164,6 +222,7 @@ struct Dev {
     float* win_cpu = nullptr;            // mapped: the CPU parts [kWin][dim], then the flags [kWin] int, the wait word
     unsigned win_wait = 0;
     float *win_h = nullptr, *win_part = nullptr;
+    float *hlp_h = nullptr, *hlp_d = nullptr;   // (the helper) a layer's part: pinned, then on the device
     float* attp = nullptr;               // a token's / a window's attention splits' partials (k::attn_part_floats)
     float* wtmp = nullptr;               // (Q8_0 indexer projections) the prompt path's F32 copy of one of them
     // scratch (chunk rows)
@@ -407,9 +466,11 @@ struct Model::Impl {
     static constexpr int kMaxPending = 4;
     uint8_t* pool = nullptr;         // the pinned pool
     std::unique_ptr<CpuLane> lane;
+std::unique_ptr<HelperDll> hlp;   // (Options::helper: the experts outside VRAM on the second vendor's card)
     std::unique_ptr<Draft> draftm;   // the DSpark draft (on the head's GPU)
     int last_done = 0;               // the last forward's tokens in the cache
     int chunk_run = 0;               // (the prefill calibration: a forward's chunk, at most o.chunk - 0: o.chunk)
+    int prefill_stage_mode = -1;     // -1 default, 0 serial, 1 two banks, 2 compare both on the same inputs
     int run_chunk() const { return chunk_run > 0 ? std::min(chunk_run, o.chunk) : o.chunk; }
     std::string tkey, tfile;         // (the prefill calibration's key of this PC and its file)
     std::unique_ptr<Vision> vis;     // the vision tower (Options::vision)
@@ -489,6 +550,7 @@ struct Model::Impl {
     ~Impl() {
         preport();
         graphs_clear();
+        if (hlp) hlp->release();
         for (cudaEvent_t e : pf.ev) cudaEventDestroy(e);
         if (::mm3::env("MM3_MISS_STATS") && !cpu_seen.empty()) {
             long tot = 0, distinct = 0, twice = 0;
@@ -509,6 +571,7 @@ struct Model::Impl {
         for (auto& d : D) {
             cudaSetDevice(d.id);
             if (d.cs) cudaStreamSynchronize(d.cs);
+            d.prefill_stage.release();
             for (cudaEvent_t e : d.slot_ev) cudaEventDestroy(e);
             if (d.cs) cudaStreamDestroy(d.cs);
             if (d.plan_h) cudaFreeHost(d.plan_h);
@@ -520,6 +583,7 @@ struct Model::Impl {
             if (d.win_rb) cudaFreeHost(d.win_rb);
             if (d.win_plan_h) cudaFreeHost(d.win_plan_h);
             if (d.win_cpu) cudaFreeHost(d.win_cpu);
+            if (d.hlp_h) cudaFreeHost(d.hlp_h);
             if (d.pin) cudaFreeHost(d.pin);
             if (d.blas) cublasDestroy(d.blas);
             if (d.hop) cudaEventDestroy(d.hop);
@@ -1253,6 +1317,9 @@ struct Model::Impl {
                 d.slot_pend.assign((size_t) d.n_slots, -1);
                 d.slot_iss.assign((size_t) d.n_slots, 0);
                 CK(cudaStreamCreateWithFlags(&d.cs, cudaStreamNonBlocking));
+#if !defined(STRATA_USE_HIP)
+                CK(d.prefill_stage.init());
+#endif
                 d.slot_ev.resize((size_t) d.n_slots);
                 for (auto& e : d.slot_ev) CK(cudaEventCreateWithFlags(&e, cudaEventDisableTiming));
                 CK(cudaMallocHost(&d.pin, d.slot_bytes));
@@ -1269,6 +1336,10 @@ struct Model::Impl {
             if (!A(d.win_plan_d, win_plan_bytes())) return false;
             CK(cudaHostAlloc(&d.win_cpu, ((size_t) kWin * g.dim + kWin + 4) * 4, cudaHostAllocMapped | cudaHostAllocPortable));
             if (!A(d.win_h, (size_t) kWin * 8 * g.ff) || !A(d.win_part, (size_t) kWin * 8 * g.dim)) return false;
+            if (o.helper) {
+                CK(cudaMallocHost(&d.hlp_h, (size_t) kWin * g.dim * sizeof(float)));
+                if (!A(d.hlp_d, (size_t) kWin * g.dim)) return false;
+            }
             if (attn_splits > 1 && !A(d.attp, k::attn_part_floats(kWin, g.n_kv, attn_splits))) return false;
         }
         // KV streaming: every layer's whole cache in host memory (one pinned, mapped allocation, carved), written as the
@@ -1459,7 +1530,13 @@ struct Model::Impl {
                 Layer& l = L[(size_t) moe_layers[i]];
                 l.res_slot.assign((size_t) g.n_exp, -1);
                 l.res_ids.clear();
-                if (nres[i] > 0 && !dalloc(d.id, l.res_base, (size_t) nres[i] * l.blob, err)) return false;
+                if (nres[i] > 0) {
+                    const int saved = acat;
+                    acat = kAPool;
+                    const bool ok = dalloc(d.id, l.res_base, (size_t) nres[i] * l.blob, err);
+                    acat = saved;
+                    if (!ok) return false;
+                }
                 for (int sl = 0; sl < nres[i]; ++sl) {
                     const int e = have_prof ? chosen[i][(size_t) sl] : sl;
                     l.res_slot[(size_t) e] = sl;
@@ -1557,6 +1634,13 @@ struct Model::Impl {
                     }
             }
             std::stable_sort(cand.begin(), cand.end(), [](const Cand& a, const Cand& b) { return a.n > b.n; });
+#if defined(_WIN32)
+            // (Windows: the GGUF's pages read so far sit in this process's working set, which ram_avail() does not
+            //  count - so a load touches them all and the budget reads a small fraction, and the experts come from
+            //  the SSD at run time.  Trim the working set first: the mapping's pages go to the standby list and
+            //  they are available at once; the pinned ones (the caches, and the pool not there yet) are not touched)
+            K32EmptyWorkingSet(GetCurrentProcess());
+#endif
             const double avail = (double) os::ram_avail();   // (the page cache counts: the mapped files can be read again)
             double budget = avail > 0 ? avail - ram_headroom() : (double) total;
             size_t want = 0, nw = 0;
@@ -1613,6 +1697,78 @@ struct Model::Impl {
                                    "most routed; the rest from the model's files");
             }
         }
+        // the cross-vendor expert helper (--helper on): the experts outside VRAM that the pinned pool holds, uploaded
+        // once to the second vendor's card (a HIP build's DLL, mm3_helper.h) - a decode window's picks of them run
+        // there instead of the CPU lane.  The GGUF path only: its blobs are the layout the helper takes
+#if defined(_WIN32)
+        if (o.helper && gguf) {
+            std::string hipbin = "C:\\Program Files\\AMD\\ROCm\\6.4\\bin";
+            if (const char* b = ::mm3::env("MM3_HELPER_HIP_BIN")) hipbin = b;
+            if (GetFileAttributesA(hipbin.c_str()) != INVALID_FILE_ATTRIBUTES) AddDllDirectory(std::wstring(hipbin.begin(), hipbin.end()).c_str());
+            std::string herr;
+            hlp = std::make_unique<HelperDll>();
+            const char* dv = ::mm3::env("MM3_HELPER_DLL");
+            if (!hlp->load(dv && *dv ? dv : "maya-mm3-hhelper.dll", herr)) {
+                info.push_back("NOTE: helper: " + herr + " (the experts outside VRAM stay on the CPU lane)");
+                hlp.reset();
+            } else {
+                struct HC {
+                    uint32_t n;
+                    int li, e;
+                };
+                std::vector<HC> cand;
+                size_t stride = 0;
+                for (size_t li = 0; li < L.size(); ++li) {
+                    const Layer& l = L[li];
+                    if (!l.moe || l.host_blob.empty()) continue;
+                    for (int e = 0; e < g.n_exp; ++e)
+                        if (l.res_slot[(size_t) e] < 0 && l.host_blob[(size_t) e] != nullptr) {
+                            cand.push_back({prof[li * g.n_exp + e], (int) li, e});
+                            stride = std::max(stride, l.blob);
+                        }
+                }
+                std::stable_sort(cand.begin(), cand.end(), [](const HC& a, const HC& b) { return a.n > b.n; });
+                const size_t budget = (size_t) (std::max(0.0, o.helper_gb) * (1u << 30));
+                const size_t n = stride > 0 ? std::min(cand.size(), budget / stride) : 0;
+                char hb[512] = {0};
+                bool ok = n > 0 && hlp->open(0, g.dim, g.ff, &hlp->h, hb, sizeof hb) == 0;
+                for (size_t li = 0; ok && li < L.size(); ++li) {
+                    const Layer& l = L[li];
+                    if (!l.moe) continue;
+                    if (hlp->layout(hlp->h, (int) li, &l.lay, sizeof(x3::ExpertLayout), stride, hb, sizeof hb) != 0)
+                        ok = false;
+                }
+                ok = ok && hlp->reserve(hlp->h, (int) n, stride, hb, sizeof hb) == 0;
+                int used = 0;
+                for (size_t i = 0; ok && i < n; ++i) {
+                    Layer& l = L[(size_t) cand[i].li];
+                    if (l.hlp_slot.empty()) l.hlp_slot.assign((size_t) g.n_exp, -1);
+                    if (hlp->upload(hlp->h, (int) i, cand[i].li, l.host_blob[(size_t) cand[i].e], l.blob, hb,
+                                    sizeof hb) != 0) {
+                        ok = false;
+                        break;
+                    }
+                    l.hlp_slot[(size_t) cand[i].e] = (int) i;
+                    ++used;
+                }
+                if (!ok) {
+                    info.push_back(std::string("NOTE: helper: ") + (hb[0] ? hb : "no experts in the pool") +
+                                   " (the experts outside VRAM stay on the CPU lane)");
+                    hlp->release();
+                    hlp.reset();
+                    for (Layer& l : L) l.hlp_slot.clear();
+                } else {
+                    st.helper_slots = used;
+                    st.helper_allocated_bytes = (uint64_t)used * stride;
+                    info.push_back("helper: " + std::to_string(used) + " experts on the second card (" +
+                                   std::to_string(stride >> 20) + " MB each, " + std::to_string((used * stride) >> 30) +
+                                   " GB), the most routed");
+                }
+            }
+        }
+#else
+        if (o.helper) info.push_back("NOTE: helper: not on this platform");
+#endif
         // host-free layers: a MoE layer with every routed expert in VRAM makes its decode plan on the device (the routing
         // read, the experts' addresses looked up and a window's experts grouped there) - a token or a verify window is
         // enqueued whole, with no wait for the host between its layers.  MAYA_MM3_HOST_FREE=0: every layer through the
@@ -1917,7 +2073,7 @@ struct Model::Impl {
             CK(cudaMemcpyAsync(d.win_rb, d.top, (size_t) T * g.k_exp * 4, cudaMemcpyDeviceToHost, d.s));
             CK(cudaMemcpyAsync(d.win_rb + (size_t) kWin * 8 * 4, d.w, (size_t) T * g.k_exp * 4, cudaMemcpyDeviceToHost,
                                d.s));
-            if (lane)
+            if (lane || hlp)
                 CK(cudaMemcpyAsync(d.win_rb + (size_t) kWin * 8 * 8, d.xn, (size_t) T * g.dim * 4,
                                    cudaMemcpyDeviceToHost, d.s));
         }
@@ -1994,12 +2150,20 @@ struct Model::Impl {
         std::vector<std::vector<int>> by_ptr_ent;
         std::vector<unsigned long long> by_ptr;
         std::vector<char> stage_it((size_t) g.n_exp, 0);   // (lane_split's: distinct experts staged instead)
+        std::vector<int32_t> hslot;   // (the helper) each pick's slot in its arena (-1: not its own)
+        std::vector<float> hw;
+        int nh = 0;
+        if (hlp) {
+            hslot.assign((size_t) T * g.k_exp, -1);
+            hw.assign((size_t) T * g.k_exp, 0.0f);
+        }
         if (lane && lane_copy > 0) {
             std::vector<int> cand;
             for (int t = 0; t < T; ++t)
                 for (int i = 0; i < g.k_exp; ++i) {
                     const int x = rtop[t * g.k_exp + i];
-                    if (on_cpu(l, d, x) && pooled(l, x) && std::find(cand.begin(), cand.end(), x) == cand.end())
+                    if (on_cpu(l, d, x) && pooled(l, x) && !(hlp && !l.hlp_slot.empty() && l.hlp_slot[(size_t) x] >= 0) &&
+                        std::find(cand.begin(), cand.end(), x) == cand.end())
                         cand.push_back(x);
                 }
             const int s = std::min((int) cand.size(), std::min(lane_split((int) cand.size()), d.n_slots / 2));
@@ -2015,6 +2179,12 @@ struct Model::Impl {
                 const float wt = rw[t * g.k_exp + i] * g.scale;
                 pw[e] = wt;
                 ++prof[li * g.n_exp + x];
+                if (hlp && on_cpu(l, d, x) && !l.hlp_slot.empty() && l.hlp_slot[(size_t) x] >= 0) {
+                    hslot[(size_t) t * g.k_exp + i] = l.hlp_slot[(size_t) x];
+                    hw[(size_t) t * g.k_exp + i] = wt;
+                    ++nh;
+                    continue;
+                }
                 if (lane && on_cpu(l, d, x) && !stage_it[(size_t) x]) {
                     if (cpu_seen.empty()) cpu_seen.assign((size_t) g.n_layers * g.n_exp, 0);
                     if (cpu_of[(size_t) x] < 0) ++cpu_seen[li * g.n_exp + x];
@@ -2064,6 +2234,29 @@ struct Model::Impl {
             err = "win_experts";
             return false;
         }
+        bool with_hlp = false;
+        if (hlp && nh > 0) {   // (the second vendor's card: enqueued, waited for after the lane)
+            // WDDM may retain CUDA launches until a query/wait. Submit the primary's work before the
+            // helper starts so both cards run while the host computes any remaining CPU experts.
+            k::submit(d.s);
+            mm3h_layer hl{};
+            hl.layer = (int) li;
+            hl.n_tok = T;
+            hl.k = g.k_exp;
+            hl.limit = g.limit;
+            hl.x = rx;
+            hl.slot = hslot.data();
+            hl.w = hw.data();
+            hl.out = d.hlp_h;
+            char hb[512] = {0};
+            if (hlp->submit(hlp->h, &hl, 1, hb, sizeof hb) != 0) {
+                if (with_cpu) *(volatile unsigned*) wait_word = d.win_wait;
+                err = std::string("helper: ") + hb;
+                return false;
+            }
+            st.helper_experts += nh;
+            with_hlp = true;
+        }
         if (with_cpu) {   // the CPU lane's parts while the device runs the others; then the word it waits on
             const double tl = now();
             lane_run_multi(cpu, users, rx, T, cpu_rows, &order);
@@ -2074,6 +2267,19 @@ struct Model::Impl {
             st.cpu_experts += (long) cpu.size();
             std::atomic_thread_fence(std::memory_order_seq_cst);
             *(volatile unsigned*) wait_word = d.win_wait;
+        }
+        if (with_hlp) {   // (its work ran beside the lane: what is left of it)
+            const double th = now();
+            char hb[512] = {0};
+            if (hlp->wait(hlp->h, hb, sizeof hb) != 0) {
+                err = std::string("helper: ") + hb;
+                return false;
+            }
+            st.t_helper += now() - th;
+            // Keep the helper's upload on the layer's stream: the add below waits for it, and the next
+            // window_post's routing sync finishes this copy before hlp_h can be written again.
+            CK(cudaMemcpyAsync(d.hlp_d, d.hlp_h, (size_t) T * g.dim * 4, cudaMemcpyHostToDevice, d.s));
+            k::add(d.h, d.hlp_d, (size_t) T * g.dim, d.s);
         }
         k::add(d.h, d.out, (size_t) T * g.dim, d.s);
         pmark(d, kPExperts);
@@ -2355,7 +2561,9 @@ struct Model::Impl {
         float w[8];
         CK(cudaMemcpyAsync(d.plan_h, d.top, (size_t) g.k_exp * 4, cudaMemcpyDeviceToHost, d.s));
         CK(cudaMemcpyAsync(d.plan_h + 4, d.w, (size_t) g.k_exp * 4, cudaMemcpyDeviceToHost, d.s));
-        if (lane) CK(cudaMemcpyAsync(d.xh_h, d.xn, (size_t) g.dim * 4, cudaMemcpyDeviceToHost, d.s));
+        const bool use_helper = hlp && !l.hlp_slot.empty();
+        if (lane || use_helper)
+            CK(cudaMemcpyAsync(d.xh_h, d.xn, (size_t) g.dim * 4, cudaMemcpyDeviceToHost, d.s));
         const double ts = now();
         CK(cudaStreamSynchronize(d.s));
         st.t_sync += now() - ts;
@@ -2369,16 +2577,25 @@ struct Model::Impl {
         unsigned long long* ph = d.plan_h;
         float* pw = (float*) (d.plan_h + 8);
         std::vector<CpuExpert> cpu;
+        int32_t hslot[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
+        int nh = 0;
         // (of the experts the CPU lane would take, lane_split's - ones in the pinned pool - to staging slots instead)
         int to_stage = 0;
         if (lane && lane_copy > 0) {
             int cand = 0;
             for (int i = 0; i < g.k_exp; ++i)
-                cand += on_cpu(l, d, top[i]) && pooled(l, top[i]);
+                cand += on_cpu(l, d, top[i]) && pooled(l, top[i]) &&
+                        !(use_helper && l.hlp_slot[(size_t) top[i]] >= 0);
             to_stage = lane_split(cand);
         }
         for (int i = 0; i < g.k_exp; ++i) {
             pw[i] = w[i] * g.scale;
+            if (use_helper && on_cpu(l, d, top[i]) && l.hlp_slot[(size_t) top[i]] >= 0) {
+                ph[i] = 0;
+                hslot[i] = l.hlp_slot[(size_t) top[i]];
+                ++nh;
+                continue;
+            }
             if (lane && on_cpu(l, d, top[i]) && to_stage > 0 && pooled(l, top[i])) {
                 --to_stage;   // (staged: locate below)
             } else if (lane && on_cpu(l, d, top[i])) {   // (not in VRAM nor in a staging slot: the CPU lane's)
@@ -2401,24 +2618,66 @@ struct Model::Impl {
         a.n_ff = g.ff;
         a.limit = g.limit;
         x3::moe_gate_up(a, d.xn, nullptr, d.s);
-        if (lane) {   // the CPU lane's part while the GPU runs the others' gate / up
-            float* part = d.xh_h + g.dim;
-            int flag = 0;
-            if (!cpu.empty()) {
-                const double tl = now();
-                lane_run(cpu, d.xh_h, part);
-                const double dt = now() - tl;
-                st.t_lane += dt;
-                flag = 1;
-                st.cpu_experts += (long) cpu.size();
-                if (lane_copy > 0) lane_retime((int) cpu.size(), 1e3 * dt);
+        // With no CPU picks the whole fused device path can run beside the helper. A null cpu_part
+        // also avoids uploading an empty CPU response; the per-call MoeArgs never retains an old flag.
+        const bool with_cpu = !cpu.empty();
+        if (!with_cpu) x3::moe_down(a, nullptr, d.sh, d.out, d.s);
+        if (nh > 0) {
+            k::submit(d.s);
+            mm3h_layer hl{};
+            hl.layer = (int) li;
+            hl.n_tok = 1;
+            hl.k = g.k_exp;
+            hl.limit = g.limit;
+            hl.x = d.xh_h;
+            hl.slot = hslot;
+            hl.w = pw;
+            hl.out = d.hlp_h;
+            char hb[512] = {0};
+            if (hlp->submit(hlp->h, &hl, 1, hb, sizeof hb) != 0) {
+                err = std::string("helper: ") + hb;
+                return false;
             }
+            st.helper_experts += nh;
+        }
+        if (with_cpu) {   // the CPU lane's part while the GPU runs the others' gate / up
+            float* part = d.xh_h + g.dim;
+            const int flag = 1;
+            const double tl = now();
+            lane_run(cpu, d.xh_h, part);
+            const double dt = now() - tl;
+            st.t_lane += dt;
+            st.cpu_experts += (long) cpu.size();
+            if (lane_copy > 0) lane_retime((int) cpu.size(), 1e3 * dt);
             std::memcpy(part + g.dim, &flag, 4);
-            CK(cudaMemcpyAsync(d.cpu_d, part, (size_t) (g.dim + 1) * 4, cudaMemcpyHostToDevice, d.s));
+            const cudaError_t copied =
+                cudaMemcpyAsync(d.cpu_d, part, (size_t) (g.dim + 1) * 4, cudaMemcpyHostToDevice, d.s);
+            if (copied != cudaSuccess) {
+                // A failed primary upload must still drain the helper before the next request reuses its buffers.
+                if (nh > 0) {
+                    char ignored[512] = {0};
+                    hlp->wait(hlp->h, ignored, sizeof ignored);
+                }
+                err = std::string("token CPU part upload: ") + cudaGetErrorString(copied);
+                return false;
+            }
             a.cpu_part = d.cpu_d;
             a.cpu_flag = (const int*) (d.cpu_d + g.dim);
+            x3::moe_down(a, nullptr, d.sh, d.out, d.s);
         }
-        x3::moe_down(a, nullptr, d.sh, d.out, d.s);
+        if (nh > 0) {
+            if (with_cpu) k::submit(d.s);   // the CPU response and down projection must run during the HIP wait
+            const double th = now();
+            char hb[512] = {0};
+            if (hlp->wait(hlp->h, hb, sizeof hb) != 0) {
+                err = std::string("helper: ") + hb;
+                return false;
+            }
+            st.t_helper += now() - th;
+            // The next token/window routing sync on this device finishes the upload before hlp_h is reused.
+            CK(cudaMemcpyAsync(d.hlp_d, d.hlp_h, (size_t) g.dim * 4, cudaMemcpyHostToDevice, d.s));
+            k::add(d.h, d.hlp_d, (size_t) g.dim, d.s);
+        }
         k::add(d.h, d.out, (size_t) g.dim, d.s);
         pmark(d, kPExperts);
         // (the plan's pinned copy is rewritten by the next MoE layer of this GPU after its routing sync, which
@@ -2431,12 +2690,72 @@ struct Model::Impl {
     // slot: an expert already in a slot keeps it, the others take the least recently used slots)
     bool experts(Layer& l, Dev& d, int T, const std::vector<int>& top, std::string& err) {
         const int K = g.k_exp;
+        if (prefill_stage_mode == 2) {
+            // Diagnostic A/B of every routed output before the residual sum. Use
+            // the inverse row maps: the two bank sizes reorder the physical rows.
+            struct Restore { int& mode; ~Restore() { mode = 2; } } restore{prefill_stage_mode};
+            const size_t entries = (size_t) T * K, values = entries * g.dim;
+            std::vector<float> ref(values), got(values);
+            std::vector<int> ri(entries), gi(entries);
+            prefill_stage_mode = 0;
+            if (!experts(l, d, T, top, err)) return false;
+            CK(cudaMemcpy(ref.data(), d.y, values * sizeof(float), cudaMemcpyDeviceToHost));
+            CK(cudaMemcpy(ri.data(), d.invrow, entries * sizeof(int), cudaMemcpyDeviceToHost));
+            prefill_stage_mode = 1;
+            if (!experts(l, d, T, top, err)) return false;
+            CK(cudaMemcpy(got.data(), d.y, values * sizeof(float), cudaMemcpyDeviceToHost));
+            CK(cudaMemcpy(gi.data(), d.invrow, entries * sizeof(int), cudaMemcpyDeviceToHost));
+            double max_abs = 0;
+            for (size_t e = 0; e < entries; ++e) {
+                if (ri[e] < 0 || gi[e] < 0 || (size_t) ri[e] >= entries || (size_t) gi[e] >= entries) {
+                    err = "prefill staging parity: invalid inverse row";
+                    return false;
+                }
+                for (int j = 0; j < g.dim; ++j) {
+                    const float a = ref[(size_t) ri[e] * g.dim + j], b = got[(size_t) gi[e] * g.dim + j];
+                    const double diff = std::fabs((double) a - b);
+                    max_abs = std::max(max_abs, diff);
+                    if (!std::isfinite(a) || !std::isfinite(b) || diff > 1e-5 * (1.0 + std::max(std::fabs(a), std::fabs(b)))) {
+                        err = "prefill staging parity: layer " + std::to_string(&l - L.data()) +
+                              " entry " + std::to_string(e) + " channel " + std::to_string(j) +
+                              " serial " + std::to_string(a) + " overlap " + std::to_string(b);
+                        return false;
+                    }
+                }
+            }
+            ++st.prefill_parity_layers;
+            st.prefill_parity_max_abs = std::max(st.prefill_parity_max_abs, max_abs);
+            return true;
+        }
         std::vector<std::vector<int>> rows_of((size_t) g.n_exp);   // expert -> its (t * K + slot) entries
         for (int t = 0; t < T; ++t)
             for (int i = 0; i < K; ++i) rows_of[(size_t) top[(size_t) t * K + i]].push_back(t * K + i);
         std::vector<int> staged;
         for (int e = 0; e < g.n_exp; ++e)
             if (!rows_of[(size_t) e].empty() && l.res_slot[(size_t) e] < 0) staged.push_back(e);
+        bool overlap = false;
+#if !defined(STRATA_USE_HIP)
+        const char* ps = ::mm3::env("MM3_PREFILL_STAGING");
+        overlap = (prefill_stage_mode < 0 ? !(ps && std::atoi(ps) == 0) : prefill_stage_mode != 0) &&
+                  d.n_slots >= 2 && d.cs && !staged.empty();
+        // Only stable pinned sources may outlive this function's copy submission.
+        // Without the pool keep stage()'s serialized, reusable assembly buffer.
+        for (int e : staged)
+            if (l.host_blob.empty() || !l.host_blob[(size_t) e]) overlap = false;
+#endif
+        if (overlap && d.n_pending > 0) {
+            // Decode promotions share these slots/stream. Complete and account for
+            // them once before a prompt starts assigning both banks.
+            issue_promotions(d);
+            CK(cudaStreamSynchronize(d.cs));
+            for (int s = 0; s < d.n_slots; ++s)
+                if (d.slot_pend[(size_t) s] >= 0) {
+                    d.slot_owner[(size_t) s] = d.slot_pend[(size_t) s];
+                    d.slot_pend[(size_t) s] = -1;
+                    d.slot_used[(size_t) s] = fwd;
+                }
+            d.n_pending = 0;
+        }
         struct Pass {
             const uint8_t* wbase;
             size_t stride;
@@ -2444,25 +2763,31 @@ struct Model::Impl {
             int row0 = 0, rows = 0, max_rows = 0;
             std::vector<int> bounds;
             bool staged = false;
+            int slot0 = 0, bank = -1;
+            bool submitted = false;
         };
         std::vector<Pass> passes;
         if (!l.res_ids.empty()) passes.push_back({l.res_base, l.blob, l.res_ids});
         const long long lid = (long long) (&l - L.data());
-        for (size_t si = 0; si < staged.size();) {
-            std::vector<int> se((size_t) d.n_slots, -1), fresh;
-            for (int n = 0; si < staged.size() && n < d.n_slots; ++si, ++n) {
+        int batch = 0;
+        for (size_t si = 0; si < staged.size(); ++batch) {
+            const int bank = overlap ? batch % 2 : -1;
+            const int slot0 = overlap ? PrefillStaging::first(d.n_slots, bank) : 0;
+            const int slots = overlap ? PrefillStaging::count(d.n_slots, bank) : d.n_slots;
+            std::vector<int> se((size_t) slots, -1), fresh;
+            for (int n = 0; si < staged.size() && n < slots; ++si, ++n) {
                 const int e = staged[si];
                 int at = -1;
-                for (int s = 0; s < d.n_slots; ++s)
-                    if (d.slot_owner[(size_t) s] == lid * 1024 + e) at = s;
+                for (int s = 0; s < slots; ++s)
+                    if (d.slot_owner[(size_t) (slot0 + s)] == lid * 1024 + e) at = s;
                 if (at >= 0 && se[(size_t) at] < 0) se[(size_t) at] = e;
                 else fresh.push_back(e);
             }
             for (size_t fi = 0; fi < fresh.size(); ++fi) {
                 int best = -1;
-                for (int s = 0; s < d.n_slots; ++s)
-                    if (se[(size_t) s] < 0 && d.slot_pend[(size_t) s] < 0 &&
-                        (best < 0 || d.slot_used[(size_t) s] < d.slot_used[(size_t) best]))
+                for (int s = 0; s < slots; ++s)
+                    if (se[(size_t) s] < 0 && d.slot_pend[(size_t) (slot0 + s)] < 0 &&
+                        (best < 0 || d.slot_used[(size_t) (slot0 + s)] < d.slot_used[(size_t) (slot0 + best)]))
                         best = s;
                 if (best < 0) {   // (every free slot pending: the rest first in the next batch)
                     staged.insert(staged.begin() + (long) si, fresh.begin() + (long) fi, fresh.end());
@@ -2470,8 +2795,10 @@ struct Model::Impl {
                 }
                 se[(size_t) best] = fresh[fi];
             }
-            Pass p{d.stg, d.slot_bytes, std::move(se)};
+            Pass p{d.stg + (size_t) slot0 * d.slot_bytes, d.slot_bytes, std::move(se)};
             p.staged = true;
+            p.slot0 = slot0;
+            p.bank = bank;
             passes.push_back(std::move(p));
         }
         std::vector<int> rowidx, invrow((size_t) T * K, -1);
@@ -2494,21 +2821,46 @@ struct Model::Impl {
             err = "internal: routed rows " + std::to_string(rowidx.size());
             return false;
         }
-        CK(cudaMemcpyAsync(d.rowidx, rowidx.data(), rowidx.size() * 4, cudaMemcpyHostToDevice, d.s));
-        CK(cudaMemcpyAsync(d.invrow, invrow.data(), invrow.size() * 4, cudaMemcpyHostToDevice, d.s));
-        for (const Pass& p : passes) {
-            if (p.rows == 0) continue;
-            if (p.staged) {
-                for (int s = 0; s < d.n_slots; ++s) {
-                    const int e = p.slot_expert[(size_t) s];
-                    if (e < 0) continue;
-                    if (d.slot_owner[(size_t) s] != lid * 1024 + e) {
-                        if (!stage(l, d, e, s, err)) return false;
-                        d.slot_owner[(size_t) s] = lid * 1024 + e;
-                    }
-                    d.slot_used[(size_t) s] = fwd;
+        // Keep the host plans alive until their DMA and readers finish, including
+        // error exits. All compute scratch is reused in d.s order; only the weight
+        // banks cross streams. One final wait replaces the wait after every pass.
+        struct Drain {
+            Dev& d;
+            bool active = true;
+            ~Drain() {
+                if (active) {
+                    if (d.cs) cudaStreamSynchronize(d.cs);
+                    cudaStreamSynchronize(d.s);
                 }
             }
+        } drain{d};
+        CK(cudaMemcpyAsync(d.rowidx, rowidx.data(), rowidx.size() * 4, cudaMemcpyHostToDevice, d.s));
+        CK(cudaMemcpyAsync(d.invrow, invrow.data(), invrow.size() * 4, cudaMemcpyHostToDevice, d.s));
+        if (overlap) CK(d.prefill_stage.begin(d.s));
+        auto copy_pass = [&](Pass& p) -> bool {
+            if (!p.staged || p.submitted) return true;
+            if (overlap) CK(d.prefill_stage.copy_begin(p.bank, d.cs));
+            for (int s = 0; s < (int) p.slot_expert.size(); ++s) {
+                const int e = p.slot_expert[(size_t) s], at = p.slot0 + s;
+                if (e < 0) continue;
+                if (d.slot_owner[(size_t) at] != lid * 1024 + e) {
+                    if (overlap) {
+                        CK(cudaMemcpyAsync(d.stg + (size_t) at * d.slot_bytes, l.host_blob[(size_t) e], l.blob,
+                                           cudaMemcpyHostToDevice, d.cs));
+                        ++st.staged;
+                    } else if (!stage(l, d, e, at, err)) return false;
+                    d.slot_owner[(size_t) at] = lid * 1024 + e;
+                }
+                d.slot_used[(size_t) at] = fwd;
+            }
+            if (overlap) CK(d.prefill_stage.copy_end(p.bank, d.cs));
+            p.submitted = true;
+            return true;
+        };
+        for (size_t pi = 0; pi < passes.size(); ++pi) {
+            Pass& p = passes[pi];
+            if (!copy_pass(p)) return false;
+            if (overlap && p.staged) CK(d.prefill_stage.compute_begin(p.bank, d.s));
             CK(cudaMemcpyAsync(d.bounds, p.bounds.data(), p.bounds.size() * 4, cudaMemcpyHostToDevice, d.s));
             x3::SetArgs sa;
             sa.wbase = p.wbase;
@@ -2527,11 +2879,22 @@ struct Model::Impl {
                 sa.x16 = d.xn16;
                 sa.graw = d.y + (size_t) p.row0 * g.dim;
             }
-            x3::set_gate_up(sa, d.xn, g.dim, d.rowidx + p.row0, d.h16, g.ff, d.s);
-            x3::set_down(sa, d.h16, g.ff, d.y + (size_t) p.row0 * g.dim, g.dim, d.s);
-            // (the next pass rewrites the bounds and h16: let this one finish with them)
-            CK(cudaStreamSynchronize(d.s));
+            if (p.rows > 0) {
+                x3::set_gate_up(sa, d.xn, g.dim, d.rowidx + p.row0, d.h16, g.ff, d.s);
+                x3::set_down(sa, d.h16, g.ff, d.y + (size_t) p.row0 * g.dim, g.dim, d.s);
+            }
+            if (overlap) {
+                if (p.staged) CK(d.prefill_stage.compute_end(p.bank, d.s));
+                // Submit resident/current kernels before starting the next large
+                // DMA (Windows batches launches until a stream is submitted).
+                k::submit(d.s);
+                if (pi + 1 < passes.size() && !copy_pass(passes[pi + 1])) return false;
+            } else {
+                CK(cudaStreamSynchronize(d.s));
+            }
         }
+        CK(cudaStreamSynchronize(d.s));
+        drain.active = false;
         return true;
     }
 
@@ -3208,6 +3571,7 @@ bool Model::load(const Options& o_in, std::string& err) {
 int Model::chunk() const { return tpe ? 0 : p->run_chunk(); }
 int Model::chunk_max() const { return tpe ? 0 : p->o.chunk; }
 void Model::set_chunk(int c) { p->chunk_run = c; }
+void Model::set_prefill_staging(int mode) { p->prefill_stage_mode = mode >= 0 && mode <= 2 ? mode : -1; }
 void Model::set_prefill_gemm(int b) { gg::set_gemm(b); }
 int Model::prefill_gemm() const { return gg::gemm_backend(); }
 bool Model::lt_available() const { return !tpe && p->gguf && gg::gemm_lt_available(); }
@@ -3240,6 +3604,26 @@ bool Model::write_tune(const std::string& settings, std::string& err) const {
     return true;
 }
 int Model::vocab() const { return tpe ? tpe->vocab() : p->g.vocab; }
+bool Model::restore_prefix(int prefix, int mode, std::string& err) {
+    if (tpe || prefix <= 0 || p->st.kv_ring <= 0) return true;
+    if (prefix > p->o.max_ctx) {
+        err = "KV prefix exceeds the context";
+        return false;
+    }
+    const char* setting = ::mm3::env("MM3_KV_RESTORE");
+    if (mode == 0 || (mode < 0 && setting && std::atoi(setting) == 0)) return true;
+    // A valid cached prefix may live only in host memory after a longer prompt
+    // wrapped the ring. Reusing its tokens alone leaves hot attention-sink rows
+    // permanently on PCIe. Restore only missing rows; preserve every KV bit.
+    for (const Layer& l : p->L) {
+        if (l.kvh.ring <= 0) continue;
+        Dev& d = p->D[(size_t) l.dev];
+        CK(cudaSetDevice(d.id));
+        k::kv_restore_prefix(l.kc, l.vc, l.kvq, l.kvh, prefix, p->g.n_kv, d.s);
+        CK(cudaGetLastError());
+    }
+    return true;   // subsequent forwards use these streams, after the restores
+}
 int Model::max_ctx() const { return tpe ? tpe->max_ctx() : p->o.max_ctx; }
 int Model::bos() const { return tpe ? tpe->bos() : p->g.bos; }
 int Model::eos() const { return tpe ? tpe->eos() : p->g.eos; }

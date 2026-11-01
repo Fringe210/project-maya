@@ -859,7 +859,7 @@ class _CpuRamFallback:
 # ------------------------------------------------------------------------------------------------ the sampler
 class Telemetry:
     def __init__(self, extra=None, gpu_index=0, gpu_indices=None, amd=False, reader: _Reader | None = None,
-                 start=True, busy=None):
+                 start=True, busy=None, helper_amd_index=None):
         """`extra()` -> dict of more series to record each second (the server's tok/s).  `gpu_index`: the card the
         engine runs on, numbered as nvidia-smi and NVML number them (by PCI bus); `gpu_indices`: all of them when
         the model is split across several (issue #112) - the gpu_* readings are then their total (memory, power,
@@ -897,8 +897,14 @@ class Telemetry:
         if self.amd is not None:
             self.amd = [(i, g) for i, g in self.amd if g.ok()]
             cards = [{"index": i, "pci": g.pci(), "name": g.name()} for i, g in self.amd]
-        self.idx = [int(g["index"]) for g in cards]
-        self.cards = [(int(g["index"]), g.get("pci"), g.get("name")) for g in cards]   # (the GPU map's)
+        self.helper_amd = None
+        if helper_amd_index is not None and not amd:
+            g = amd_card(helper_amd_index)
+            if g.ok():
+                self.helper_amd = (helper_amd_index, g)
+                cards.append({"index": f"hip:{helper_amd_index}", "pci": g.pci(), "name": g.name(), "backend": "hip"})
+        self.idx = [int(g["index"]) for g in cards if g.get("backend") != "hip"]
+        self.cards = [(g["index"], g.get("pci"), g.get("name")) for g in cards]   # (the GPU map's)
         try:
             import psutil  # noqa: F401
             self.ps = sys.modules["psutil"]
@@ -934,12 +940,14 @@ class Telemetry:
     def _gpu_reads(self):
         """[(index, readings)] of the cards that answered (the reader's, or the sysfs files'; [] when nothing).  An AMD
         card's processes are not listed (procs None: amdgpu's fdinfo names them, in a layout not read here)."""
-        if not self.idx:
-            return []
         if self.amd is not None:
             return [(i, dict(g.read(), procs=None)) for i, g in self.amd]
-        rep = self.nv.call({"op": "read", "idx": self.idx}) or {}
-        return [(i, r) for i, r in zip(self.idx, rep.get("gpus") or []) if isinstance(r, dict)]
+        rep = self.nv.call({"op": "read", "idx": self.idx}) or {} if self.idx else {}
+        reads = [(i, r) for i, r in zip(self.idx, rep.get("gpus") or []) if isinstance(r, dict)]
+        if self.helper_amd is not None:
+            i, g = self.helper_amd
+            reads.append((f"hip:{i}", dict(g.read(), procs=None)))
+        return reads
 
     def sample(self):
         s = {}
@@ -967,6 +975,8 @@ class Telemetry:
             by = dict(reads)
             s["vram"] = [{"index": i, "pci": pci, "name": name, "used": by[i].get("mem_used"),
                           "total": by[i].get("mem_total"),
+                          "backend": "hip" if str(i).startswith("hip:") else None,
+                          "device": int(str(i).split(":")[-1]),
                           "procs": None if by[i].get("procs") is None else {int(p): b for p, b in by[i]["procs"]}}
                          for i, pci, name in self.cards if i in by]
         if self.ps:

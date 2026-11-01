@@ -1,0 +1,48 @@
+{
+  "exe": "E:\\project-maya-glm\\build\\maya.exe",
+  "args": [
+    "--glm-pack",
+    "E:\\Maya-glm-data\\models\\Maya-M\\pack",
+    "--max-context",
+    "262144",
+    "--expert-cache",
+    "auto",
+    "--prefill",
+    "auto",
+    "--kv-streaming",
+    "on",
+    "--expert-profile",
+    "E:\\project-maya-glm\\data\\expert-profile-glm.bin"
+  ],
+  "cwd": "E:\\project-maya-glm",
+  "tokenizer": "E:\\Maya-glm-data\\models\\Maya-M\\pack\\tokenizer",
+  "model_name": "glm-5.3-flash",
+  "gpu": [
+    0
+  ],
+  "sampling": {
+    "temperature": 1.0,
+    "top_p": 0.95
+  },
+  "reasoning_effort": "high",
+  "lib_dirs": [
+    "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin",
+    "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin\\x64"
+  ],
+  "port": 8080,
+  "vision": {
+    "exe": "E:\\project-maya-glm\\build-vision\\bin\\maya-vision.exe",
+    "mmproj": "E:\\Maya-glm-data\\models\\Maya-M\\vision\\mmproj-GLM-5.3-Flash-F16.gguf",
+    "model": "E:\\Maya-glm-data\\models\\Maya-M\\vision\\GLM-5.3-Flash-vocab.gguf",
+    "gpu": true
+  },
+  "log": "E:\\project-maya-glm\\maya-maya-m.log",
+  "installer": {
+    "models_dir": "E:\\Maya-glm-data\\models",
+    "quant": "Maya-M",
+    "gguf": null,
+    "gguf_dir": null,
+    "draft": "mtp",
+    "written": "2026-10-25 10:26"
+  }
+}

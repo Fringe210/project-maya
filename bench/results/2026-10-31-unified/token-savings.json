@@ -1,0 +1,82 @@
+{
+ "since": 1793453206.44901,
+ "models": {
+  "glm-baseline.json": {
+   "since": 1793453206.4491045,
+   "bands": {
+    "base": {
+     "input": 16699,
+     "cached": 16383,
+     "output": 1348,
+     "requests": 7
+    },
+    "peak": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    }
+   },
+   "model": "glm-5.3-flash",
+   "quant": "Maya-M"
+  },
+  "glm-helper-on.json": {
+   "since": 1793454311.9546478,
+   "bands": {
+    "base": {
+     "input": 36627,
+     "cached": 32987,
+     "output": 19320,
+     "requests": 71
+    },
+    "peak": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    }
+   },
+   "model": "glm-5.3-flash",
+   "quant": "Maya-M"
+  },
+  "glm-nvidia-mtp.json": {
+   "since": 1793457945.5893424,
+   "bands": {
+    "base": {
+     "input": 34772,
+     "cached": 32872,
+     "output": 9832,
+     "requests": 39
+    },
+    "peak": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    }
+   },
+   "model": "glm-5.3-flash",
+   "quant": "Maya-M"
+  },
+  "glm-nvidia-nospec.json": {
+   "since": 1793458643.3205078,
+   "bands": {
+    "base": {
+     "input": 17230,
+     "cached": 16384,
+     "output": 3932,
+     "requests": 16
+    },
+    "peak": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    }
+   },
+   "model": "glm-5.3-flash",
+   "quant": "Maya-M"
+  }
+ },
+ "prices": {}
+}

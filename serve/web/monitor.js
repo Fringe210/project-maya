@@ -210,12 +210,15 @@ function Tiers({t, eng}) {
   const qwen = !!(eng && eng.engine_kind === "qwen");
   const set = TIER_SETS[ds4 ? "ds4" : mm3 ? "mm3" : qwen ? "qwen" : "glm"];
   const n = t.now, h = t.history || {};
-  const helper = ds4 && ((n.helper_held || 0) > 0 || (n.helper || 0) > 0 || +eng.helper_allocated_bytes > 0);
-  const helperHeld = n.helper_held != null ? n.helper_held : +eng.helper_slots || 0;
+  const helper = (ds4 || mm3 || eng.engine_kind === "glm-fast") && ((n.helper_held || 0) > 0 || (n.helper || 0) > 0 || +eng.helper_allocated_bytes > 0);
+  const helperHeld = n.helper_held != null ? n.helper_held : n.helper_slots != null ? n.helper_slots : +eng.helper_slots || 0;
   const age = n.time ? Math.max(0, Date.now() / 1000 - n.time) : null;
   const stale = age != null && age > 30;               // a reading from the last answer, not live
   // VRAM, RAM and the rest on the SSD - DeepSeek's (maya-ds4) the same keys: its RAM the copies or the read-ahead
-  const {vu, ru, total, disk, vramGb, ramGb, diskGb} = tierShares(n, eng || {});
+  const fullGpu = !!eng.expert_vram_complete;
+  const helperCopies = fullGpu ? Math.max(0, (+eng.helper_slots || helperHeld) - helperHeld) : 0;
+  let {vu, ru, total, disk, vramGb, ramGb, diskGb} = tierShares(n, eng || {});
+  if(fullGpu){ru=helperHeld;total=vu+ru;disk=0;ramGb=(+eng.helper_allocated_bytes||0)/1073741824;diskGb=0;}
   let tip = "";
   if (ds4) {
     if (!stale && n.disk_mb != null && n.disk_mb >= 500) tip = "Much of every token is read from the SSD: more RAM keeps more of the model's experts cached, and answers get faster.";
@@ -231,14 +234,14 @@ function Tiers({t, eng}) {
   }
   const pc = (x) => (100 * x) / total;
   return html`<section class=${`card${stale ? " is-stale" : ""}`} aria-label="Where the experts live">
-    <div class="card__head"><span class="card__title">${helper ? "Primary cache and RAM backing" : "Where the experts live"}</span>
+    <div class="card__head"><span class="card__title">${fullGpu ? "Experts in GPU memory" : helper ? "Primary cache and RAM backing" : "Where the experts live"}</span>
       <span class="card__sub">${age == null ? "" : stale ? `last reading ${ago(age)} ago, from the last answer` : `live · ${fmt(total)} routed experts`}</span></div>
-    <div class="tierbar" role="img" aria-label=${`${fmt(pc(vu), 0)}% of the experts in VRAM, ${fmt(pc(ru), 0)}% in ${ds4 ? "RAM" : "pinned RAM"}, ${fmt(pc(disk), 0)}% on the SSD only`}>
+    <div class="tierbar" role="img" aria-label=${`${fmt(pc(vu), 0)}% of the experts in VRAM, ${fmt(pc(ru), 0)}% in ${fullGpu ? "AMD VRAM" : ds4 ? "RAM" : "pinned RAM"}, ${fmt(pc(disk), 0)}% on the SSD only`}>
       <span class="tierbar__vram" style=${`flex-grow:${vu}`}></span><span class="tierbar__ram" style=${`flex-grow:${ru}`}></span>
       <span class="tierbar__disk" style=${`flex-grow:${disk}`}></span></div>
     <div class="legend">
       <span><i class="sw sw--vram"></i>${helper ? "Primary VRAM" : "VRAM"} <b class="num">${fmt(vu)} · ${fmt(vramGb, 1)} GB</b></span>
-      <span><i class="sw sw--ram"></i>${ds4 ? "RAM" : "Pinned RAM"} <b class="num">${fmt(ru)} · ${fmt(ramGb, 1)} GB</b></span>
+      <span><i class="sw sw--ram"></i>${fullGpu ? "AMD VRAM" : ds4 ? "RAM" : "Pinned RAM"} <b class="num">${fmt(ru)} · ${fmt(ramGb, 1)} GB</b></span>
       <span><i class="sw sw--disk"></i>SSD only <b class="num">${fmt(disk)}${diskGb == null ? "" : ` · ${fmt(diskGb, 1)} GB`}</b></span></div>
     <div class=${`tiles${set.length === 4 ? " tiles--4" : ""}`}>
       ${set.map((x) => {
@@ -259,8 +262,10 @@ function Tiers({t, eng}) {
       })}
     </div>
     ${helper ? html`<p class="card__note">${n.helper_dead ? "Helper unavailable; its selections fall back to the CPU."
+      : fullGpu ? `AMD-only: ${fmt(helperHeld)} experts${helperCopies ? ` · ${fmt(helperCopies)} additional AMD experts also cached on NVIDIA` : ""}.`
       : `Helper GPU: ${fmt(helperHeld)} profiled cached experts${n.helper == null ? "" : ` · ${fmt(n.helper, 2)} selections / evaluated token`}.`}
-      The bar shows primary VRAM and RAM backing. The helper pool is separate; CPU backing remains available for fallback.</p>` : null}
+      ${fullGpu ? "All routed experts are held on the two GPUs. RAM holds KV, embeddings and bounded transfer buffers; routed experts are not read from SSD after loading."
+        : "The bar shows primary VRAM and RAM backing. The helper pool is separate; CPU backing remains available for fallback."}</p>` : null}
     ${tip ? html`<p class="card__note">${tip}</p>` : null}
   </section>`;
 }
@@ -278,7 +283,7 @@ const GPU_PARTS = [
 ];
 const GPU_PLAIN_FROM = 5;
 const gpuKey = (g) => String(g.index != null ? g.index : `d${g.dev}`);
-const gpuLabel = (g) => `GPU ${g.index ?? g.dev}`;
+const gpuLabel = (g) => g.backend === "hip" ? `AMD ${g.device ?? 0}` : `GPU ${g.index ?? g.dev}`;
 const gpuName = (g) => (g.name || "").replace(/^NVIDIA /, "").replace(/^GeForce /, "").replace(/^AMD /, "").replace(/^Radeon /, "");
 const gpuGb = (b) => `${gb(b, b < GIB ? 2 : 1)} GB`;
 const gpuList = (gs) => gs.length === 1 ? gpuLabel(gs[0])
@@ -295,8 +300,8 @@ function gpuLayers(g, eng) {
 const kvWindow = (eng, ctx) => (+eng.kv_resident > 0 && +eng.kv_resident < ctx ? +eng.kv_resident : 0);
 function gpuSegs(g, eng) {
   const p = g.parts || {}, draft = eng.dflash ? "DFlash2" : +eng.mtp ? "MTP" : dsparkEngine(eng) ? "DSpark" : "";
-  return GPU_PARTS.filter((d) => (p[d.key] || 0) > 0 || d.key === "pool" || d.key === "kv")
-    .map((d) => ({key: d.key, bytes: p[d.key] || 0, label: d.key === "drafter" && draft ? `Drafter (${draft})` : d.label}))
+  return GPU_PARTS.filter((d) => (p[d.key] || 0) > 0 || (g.role !== "helper" && (d.key === "pool" || d.key === "kv")))
+    .map((d) => ({key: d.key, bytes: p[d.key] || 0, label: d.key === "drafter" && draft ? `Drafter (${draft})` : d.key === "rest" && g.backend === "hip" ? "Other GPU memory" : d.label}))
     .concat([{key: "free", label: "Free", bytes: g.free || 0}]);
 }
 // a GPU's NVML readings under its bar: load, power, temperature (warm from 80 °C, hot from 87) and PCIe link
@@ -324,9 +329,9 @@ function gpuDetail(g, segs, m) {
     tp: g.tp_n > 1 ? `the copies a group of ${g.tp_n} GPUs needs: the tensors each of them holds whole, and its layers' KV cache` : "",
     drafter: [g.drafter ? `weights ${gb(g.drafter, 2)} GB` : "", g.window ? `verify window ${gb(g.window, 2)} GB` : ""].filter(Boolean).join(" · "),
     pool: [g.slots ? `${fmt(g.slots)} expert slots` : "", g.borrow ? `prompts borrow up to ${gb(g.borrow)} GB of it` : ""].filter(Boolean).join(" · "),
-    helper: "separate helper expert pool; CPU backing available for fallback",
+    helper: `${g.helper_slots ? `${fmt(g.helper_slots)} experts · ` : ""}CPU backing retained for fallback`,
     vision: g.vision_lent ? "the pool's tail, while it encodes" : g.vision_own ? "the vision tower, in the engine's process" : "its own process",
-    rest: "the driver's reserve and context, conversation snapshots and small buffers",
+    rest: g.backend === "hip" ? "driver, display and allocations outside the expert pool" : "the driver's reserve and context, conversation snapshots and small buffers",
     other: "processes that are not Maya's",
     free: (g.free || 0) < 1.5 * GIB ? "kept free for the driver and the sampler" : "unused",
     used: "",
@@ -404,7 +409,7 @@ function GpuMap({m}) {
         const g = r.g, p = g.parts || {}, o = isOpen(r);
         const lent = reading && !g.vision_lent && g.borrow > 0 && p.pool > 0 ? Math.min(100, (100 * g.borrow) / p.pool) : 0;
         const line = html`
-          <span class="gpurow__name"><b>${gpuLabel(g)}</b><span>${[gpuName(g), gpuLayers(g, eng)].filter(Boolean).join(" · ")}</span></span>
+          <span class="gpurow__name"><b>${gpuLabel(g)}</b><span>${[gpuName(g), g.role === "helper" ? `Expert helper · ${fmt(g.helper_slots)} experts` : gpuLayers(g, eng)].filter(Boolean).join(" · ")}</span></span>
           <span class="gpurow__track"><span class="gpubar" role="img" onPointerMove=${(e) => move(e, r)}
               aria-label=${`${gpuLabel(g)}: ` + r.segs.map((s) => `${s.label} ${gpuGb(s.bytes)}`).join(", ")}>
               ${r.segs.map((s) => html`<span class="gpubar__seg" data-k=${s.key} style=${`--gm-c:var(--gm-${s.key});flex-grow:${s.bytes / (g.total || 1)}`}>
@@ -451,10 +456,10 @@ function Hardware({m, gpuEach}) {
     gpu: [hw.gpu_util == null ? null : fmt(hw.gpu_util), "%", each ? per((g) => (g.util == null ? "–" : `${fmt(g.util)}%`)) : multi ? `mean of ${gpus.length} cards` : st.gpu_name || ""],
     vram: [hw.gpu_mem_used == null ? null : gb(hw.gpu_mem_used), hw.gpu_mem_total ? `/ ${gb(hw.gpu_mem_total, 0)} GB` : "GB",
            each ? per((g) => (g.mem_used == null ? "–" : `${gb(g.mem_used)} GB`)) : (multi ? `${gpus.length} cards · ` : "") + (eng.expert_slots ? `${fmt(eng.expert_slots)} experts cached` : "")],
-    temp: [hw.gpu_temp == null ? null : fmt(hw.gpu_temp), "°C", each ? per((g) => (g.temp == null ? "–" : `${fmt(g.temp)}°`)) : multi ? `hottest of ${gpus.length} cards` : ""],
+    temp: [hw.gpu_temp == null ? null : fmt(hw.gpu_temp), "°C", each ? per((g) => (g.temp == null ? "–" : `${fmt(g.temp)}°`)) : multi ? `hottest of ${gpus.filter((g) => g.temp != null).length} reporting card${gpus.filter((g) => g.temp != null).length === 1 ? "" : "s"}` : ""],
     power: [hw.gpu_power == null ? null : fmt(hw.gpu_power), "W",
             each ? per((g) => (g.power == null ? "–" : `${fmt(g.power)}${g.power_limit ? `/${fmt(g.power_limit)}` : ""} W`))
-                 : hw.gpu_power_limit ? `of ${fmt(hw.gpu_power_limit)} W limit${multi ? ` (all ${gpus.length} cards)` : ""}` : ""],
+                 : hw.gpu_power_limit ? `of ${fmt(hw.gpu_power_limit)} W limit${multi ? ` (${gpus.filter((g) => g.power != null).length} reporting card${gpus.filter((g) => g.power != null).length === 1 ? "" : "s"})` : ""}` : ""],
     pcie: [gen ? `Gen${gen}` : null, hw.gpu_pcie_width ? `x${hw.gpu_pcie_width}` : "",
            each ? per((g) => `${sameLink ? "" : `${link(g)} `}${rate(g.pcie_rx_mb)}`)
                 : hw.gpu_pcie_rx_mb == null ? "" : `to GPU ${rate(hw.gpu_pcie_rx_mb)}` + (hw.gpu_pcie_gen && gen && hw.gpu_pcie_gen < gen ? ` · idle Gen${hw.gpu_pcie_gen}` : "")],

@@ -688,6 +688,19 @@ struct Glm5Model::FastState {
     uint64_t helper_swaps = 0;
     std::atomic<bool> helper_failed{false};
     std::string helper_error;
+    std::atomic<uint64_t> helper_fallback{0};
+    bool hip_vram_only=false,hip_vram_ready=false;
+    bool hip_tail_cache=false,hip_cache_backups=false;
+    int hip_cache_check_left=0;
+    std::vector<uint64_t> hip_recent; // per-key route recency; AMD retains authoritative tail backing
+    uint64_t hip_cache_copies=0,hip_cache_bytes=0;
+    struct HipCacheMove {
+        int key=-1,slot=-1; uint8_t* host=nullptr;
+        cudaEvent_t ready=nullptr,done=nullptr;
+    };
+    std::array<HipCacheMove,2> hip_cache_moves;
+
+    std::atomic<uint64_t> source_hip_bytes{0},source_cuda_bytes{0},expert_ssd_bytes{0};
     std::atomic<uint64_t> helper_experts{0}, helper_routes{0}, helper_us{0};
     // the lane's own thread count when cpu_pool holds more (STRATA_GLM_CPU_LANE_MAX): a request that names no
     // cpu_threads returns to it, not to the whole pool; 0 = the pool's size

@@ -4,6 +4,19 @@ Every release is on GitHub (Releases) with these notes; every published change m
 page's Settings › About and updates (About > Update before the redesign; from v1.0.18), or `git pull`, then `./setup.sh` (Windows: `START-MAYA.bat`) - it recompiles
 only what changed and starts; the model is not downloaded again.
 
+## Unreleased — single backend and CUDA + HIP experts
+
+- One `maya-backend.exe` links DeepSeek, GLM and MiniMax architecture paths. `START-MAYA.bat` selects installed weight profiles in the same checkout and shared server; CUDA setup/build entries target the common binary.
+- One HIP helper DLL exports the three architecture-specific expert ABIs. GLM gains a static AMD pool, graph replay, numerical checks and an all-VRAM policy covering NVIDIA main slots plus AMD storage, including prompt lending. Host expert duplication is replaced by bounded staging; runtime expert SSD reads are forbidden. A separate legacy mode retains RAM backing. DeepSeek retains 262K, DSpark and mmap-experts off; MiniMax retains 128K and int8 KV.
+- The Monitor shows an AMD helper separately from CUDA device 0, with actual arena/slot counts and no invented sensor readings. Single-GPU runs keep a single-GPU view.
+- Port MiniMax's staging overlap, prefix/KV restore fixes and numerical diagnostics. Classify resident MiniMax expert allocations as expert pool rather than activations in memory telemetry.
+
+GLM MTP now honors per-request verify windows (two or three predictions). The short-prompt CUDA+HIP profile avoids expert weight transfers below 128 tokens. Benchmarks favor NVIDIA without MTP for the tested code workloads; AMD batched-prefill compute remains unimplemented. See [GLM results](docs/GLM-CUDA-HIP.md).
+
+GLM all-VRAM decode now reuses the CUDA prompt tail and optional AMD-backed main slots as an adaptive cache. Stable pinned landing buffers, copy-stream fences and reuse-based admissions recover 69.91 tok/s without MTP (+25.7% versus the fresh all-VRAM control), with 262K context and zero runtime expert SSD reads. HIP mapped input/route/output buffers reduce helper-call overhead. Monitor counts physical GPU duplicates once in the residency bar and explains their copies.
+
+See [configuration and verification](docs/UNIFIED-BACKEND.md) and [controlled DeepSeek helper measurements](docs/DS4-CUDA-HIP.md).
+
 ## v1.1.43 - 2026-10-31
 
 DeepSeek-V4.1-Flash now runs unsloth's DeepSeek GGUF quants, and the setup lists UD-IQ3_S: close to Q8's quality for PCs

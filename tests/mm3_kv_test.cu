@@ -21,6 +21,7 @@
 #include <cstring>
 #include <random>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace k = mm3::k;
@@ -210,7 +211,7 @@ Err compare(const std::vector<float>& got, const std::vector<float>& ref, int he
 struct Run {
     std::vector<float> out, Kd, Vd;   // the output, and the cache's rows decoded on the CPU
 };
-Run run(const Case& c, int kf, int vf, bool rot, int ring) {
+Run run(const Case& c, int kf, int vf, bool rot, int ring, int prefix = 0) {
     const int ctx = c.ctx, Hkv = 4, Hq = c.Hq;
     const size_t vrows = (size_t) (ring > 0 ? ring : ctx) * Hkv, hrows = (size_t) ctx * Hkv;
     uint8_t* kvb = nullptr;
@@ -283,6 +284,7 @@ Run run(const Case& c, int kf, int vf, bool rot, int ring) {
     int* d_kept = dev(c.kept);
     float* d_out = nullptr;
     CK(cudaMalloc(&d_out, c.q.size() * 4));
+    if (prefix > 0) k::kv_restore_prefix(kc, vc, q, hs, prefix, Hkv, 0);
     k::sparse_attn(d_q, kc, vc, d_kept, d_qpos, c.T, Hq, Hkv, c.topk, c.blk, 1.0f / std::sqrt(128.0f), d_out, 0, q, hs);
     CK(cudaDeviceSynchronize());
     r.out = host(d_out, c.q.size());
@@ -299,13 +301,100 @@ std::string fname(int kf, int vf, bool rot) {
     return std::string("K ") + k::kv_name(kf) + " V " + k::kv_name(vf) + (rot && (kf || vf) ? " rot" : "");
 }
 
+// A long request fills/wraps the ring, then a new request reuses a short
+// prefix without recomputing it. Verify residency as well as values: reading
+// the correct host rows alone concealed the original performance regression.
+void prefix_restore_case(int kf, int vf, int ctx, int ring, int heads) {
+    const size_t nv = k::kv_bytes(kf, vf, (size_t) ring * heads);
+    const size_t nh = k::kv_bytes(kf, vf, (size_t) ctx * heads);
+    uint8_t *gpu = nullptr, *cpu = nullptr;
+    CK(cudaMalloc(&gpu, nv));
+    CK(cudaHostAlloc((void**) &cpu, nh, cudaHostAllocMapped));
+    for (size_t i = 0; i < nh; ++i) cpu[i] = (uint8_t) (i * 131 + i / 7 + 19);
+    const std::vector<uint8_t> original(cpu, cpu + nh);
+    std::vector<uint8_t> expected(nv, 0xcd);
+    CK(cudaMemcpy(gpu, expected.data(), nv, cudaMemcpyHostToDevice));
+    uint16_t *kc = nullptr, *vc = nullptr;
+    k::KvQ q;
+    k::KvHost hs;
+    hs.ring = ring;
+    k::kv_carve(gpu, (size_t) ring * heads, kf, vf, 3, kc, vc, q);
+    k::kv_carve(cpu, (size_t) ctx * heads, kf, vf, 3, hs.kc, hs.vc, hs.q);
+    std::vector<int> tags((size_t) ring, -1);
+    hs.tag = dev(tags);
+    struct Section { size_t v, h, stride; };
+    std::vector<Section> sections;
+    size_t vo = 0, ho = 0;
+    for (int fmt : {kf, vf}) {
+        const size_t codes = heads * k::kv_code_bytes(fmt), scales = heads * k::kv_scale_bytes(fmt);
+        sections.push_back({vo, ho, codes});
+        vo += ring * codes; ho += ctx * codes;
+        if (scales) {
+            sections.push_back({vo, ho, scales});
+            vo += ring * scales; ho += ctx * scales;
+        }
+    }
+    int rewound_misses = 0;
+    for (int prefix : {ctx - 17, 172, 0, ring + 7, ring, 1, ctx - 3}) {
+        int misses = 0;
+        for (int p = std::max(0, prefix - ring); p < prefix; ++p) {
+            const int row = p % ring;
+            if (tags[(size_t) row] == p) continue;
+            ++misses;
+            for (const auto& s : sections)
+                std::memcpy(expected.data() + s.v + (size_t) row * s.stride,
+                            original.data() + s.h + (size_t) p * s.stride, s.stride);
+            tags[(size_t) row] = p;
+        }
+        if (prefix == 172) rewound_misses = misses;
+        k::kv_restore_prefix(kc, vc, q, hs, prefix, heads, 0);
+        CK(cudaGetLastError());
+        CK(cudaDeviceSynchronize());
+        const bool ok = host(gpu, nv) == expected && host(hs.tag, ring) == tags &&
+                        std::memcmp(cpu, original.data(), nh) == 0;
+        if (!ok) ++g_fail;
+        std::printf("  restore K%d V%d ctx=%d ring=%d prefix=%d misses=%d %s\n",
+                    kf, vf, ctx, ring, prefix, misses, ok ? "ok" : "FAIL");
+        // The second call must be a no-op for already-resident rows.
+        k::kv_restore_prefix(kc, vc, q, hs, prefix, heads, 0);
+        CK(cudaDeviceSynchronize());
+        if (host(gpu, nv) != expected || host(hs.tag, ring) != tags) ++g_fail;
+    }
+    if (rewound_misses != 172) ++g_fail;   // the fixture must expose the old bug
+    CK(cudaFree(hs.tag)); CK(cudaFree(gpu)); CK(cudaFreeHost(cpu));
+}
+
+void prefix_restore_tests() {
+    std::puts("KV prefix residency after a long request: exact bits, tags, wraps and no-op calls");
+    for (int kf = 0; kf < 4; ++kf)
+        for (int vf = 0; vf < 4; ++vf) prefix_restore_case(kf, vf, 16384, 4096, 4);
+    prefix_restore_case(k::kKvI8, k::kKvI8, 131072, 32768, 4);
+    // Same attention output before and after restoring the evicted prefix.
+    Case c = make_case(12288, 8);
+    for (int t = 0; t < c.T; ++t) c.pos[(size_t) t] = 3000 - c.T + t;
+    for (int h = 0; h < c.Hkv; ++h)
+        for (int t = 0; t < c.T; ++t)
+            for (int j = 0; j < c.topk; ++j) c.kept[((size_t) h * c.T + t) * c.topk + j] = j;
+    for (const auto& formats : {std::pair<int,int>{0,0}, {1,1}, {2,3}, {3,1}}) {
+        const Run before = run(c, formats.first, formats.second, true, 4096);
+        const Run after = run(c, formats.first, formats.second, true, 4096, 3000);
+        const bool ok = before.out == after.out;
+        if (!ok) ++g_fail;
+        std::printf("  prefix attention K%d V%d bitwise equal: %s\n", formats.first, formats.second, ok ? "yes" : "FAIL");
+    }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
-    (void) argc, (void) argv;
     cudaDeviceProp p{};
     CK(cudaGetDeviceProperties(&p, 0));
     std::printf("mm3_kv_test on %s\n", p.name);
+    prefix_restore_tests();
+    if (argc > 1 && std::string(argv[1]) == "--prefix-restore") {
+        std::printf("mm3_kv_test prefix restore: %s (%d failures)\n", g_fail ? "FAIL" : "ok", g_fail);
+        return g_fail ? 1 : 0;
+    }
     const int combos[][2] = {{0, 0}, {1, 1}, {2, 2}, {3, 3}, {2, 3}, {1, 3}, {0, 3}, {0, 2}, {2, 0}, {3, 2}};
     // 1. exactness: the GPU's attention over the cache = the reference over the cache's decoded rows, 8K positions
     {

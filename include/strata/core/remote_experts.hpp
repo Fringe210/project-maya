@@ -7,17 +7,20 @@
 #include <cuda_runtime.h>
 
 #include <cstdint>
+#include <memory>
+#include <atomic>
 #include <string>
 #include <utility>
 #include <vector>
 
+struct GlmHipHelper;
 namespace strata::core {
 
 /// GLM helper-owned experts. UMA aliases pinned RAM; discrete helpers cache in
 /// their own VRAM. Neither backend changes the legacy Qwen RemoteExperts path.
 class GlmExpertHelper {
 public:
-    GlmExpertHelper() = default;
+    GlmExpertHelper();
     ~GlmExpertHelper();
     GlmExpertHelper(const GlmExpertHelper&) = delete;
     GlmExpertHelper& operator=(const GlmExpertHelper&) = delete;
@@ -41,8 +44,24 @@ public:
                  float* out, std::string& err);
     void close();
     int device() const { return device_; }
+    bool hip() const { return hip_ != nullptr; }
+    static void set_hip_test_fail(bool value) { hip_test_fail_.store(value); }
+    bool read_hip_bytes(int key,size_t off,size_t bytes,void* out,std::string& err);
+    void forget_host_backing();
+    bool read_hip_q8(int n,void* xq,void* hq,std::string& err);
+    bool hip_failed() const { return hip_failed_; }
+    bool hip_enabled() const { return !hip_failed_ && hip_enabled_.load(); }
+    void hip_disable() { hip_failed_ = true; }
+    static void set_hip_enabled(bool value) { hip_enabled_.store(value); }
+    const uint8_t* host(int key) const { return slots_[(size_t)key].host; }
+    int resident() const;
+
 
 private:
+    std::unique_ptr<GlmHipHelper> hip_;
+    std::atomic<bool> hip_failed_{false};
+    static std::atomic<bool> hip_enabled_;
+    static std::atomic<bool> hip_test_fail_;
     struct Region { const uint8_t* host; uint8_t* mapped; size_t bytes; };
     std::vector<Region> regions_;
     struct Slot { uint8_t* host = nullptr; uint8_t* device = nullptr; size_t bytes = 0; };

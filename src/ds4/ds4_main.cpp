@@ -485,6 +485,7 @@ bool round(strata::ds4::Model& m, int tok, int room, bool spec, float conf_min, 
 }
 
 struct Req {
+    bool hip_helper = true;
     long long max_new = 0;
     float temperature = 0.0f, top_p = 1.0f, min_p = 0.0f;
     int top_k = 64;
@@ -624,6 +625,7 @@ bool parse_gen(const std::string& line, Req& r, bool geni) {
         else if (k == "min_p") r.min_p = std::strtof(v.c_str(), nullptr);
         else if (k == "seed") r.seed = std::strtoull(v.c_str(), nullptr, 10);
         else if (k == "spec") r.spec = std::atoi(v.c_str()) != 0;
+        else if (k == "hip_helper" && (v == "0" || v == "1")) r.hip_helper = v == "1";
         else if (k == "dspark_conf") r.conf = std::strtof(v.c_str(), nullptr);
         else if (k == "dspark_cum" || k == "spec_cum") r.cum = std::strtof(v.c_str(), nullptr);
         else if (k == "spec_min_p") r.conf = std::strtof(v.c_str(), nullptr);   // (the server's strata_tune names)
@@ -1740,6 +1742,7 @@ int serve(strata::ds4::Model& m, const std::string& eos_list, bool spec, float c
             std::fflush(stdout);
             continue;
         }
+        m.set_hip_helper(r.hip_helper);
         m.begin_request();   // (DISK_SKIP_AUTO: between requests only)
         if (round_log().f != nullptr) round_log().tag = "r" + std::to_string(++log_req);   // (DS4_ROUND_LOG)
         // a request's own seed: its draws from the start of its stream, so the same seed gives the same answer (the
@@ -3380,7 +3383,7 @@ int check_marks(strata::ds4::Model& m, const std::vector<int>& ids, int n) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int maya_ds4_main(int argc, char** argv) {
     strata::platform::env_aliases();   // (MAYA_* settings under their older names too)
 #if defined(__linux__)
     // the kernel's NUMA balancing (kernel.numa_balancing=1) scans memory whose policy migrates on fault: every thread
@@ -3922,3 +3925,7 @@ int main(int argc, char** argv) {
     m.save_profile();
     return 0;
 }
+
+#ifndef MAYA_UNIFIED_BACKEND
+int main(int argc, char** argv) { return maya_ds4_main(argc, argv); }
+#endif

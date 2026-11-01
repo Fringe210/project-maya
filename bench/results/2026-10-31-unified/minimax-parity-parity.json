@@ -1,0 +1,9 @@
+{
+  "checks": [
+    [
+      "57",
+      "0"
+    ]
+  ],
+  "log": "[maya] reading the prompt: 4,269 tokens, 10 s so far\r\n[maya] reading the prompt: 4,269 tokens, 20 s so far\r\n[maya] reading the prompt: 4,269 tokens, 30 s so far\r\n[maya] reading the prompt: 4,269 tokens, 40 s so far\r\n[maya] reading the prompt: 4,269 tokens, 50 s so far\r\n[maya] reading the prompt: 4,269 tokens, 60 s so far\r\n[maya] prefill staging parity: 57 layers checked, max absolute error 0\r\n[maya] answering: 2 of max 32 tokens, 21.4 tok/s, 61 s\r\n[maya] done: 18 tokens in 61 s (60.8 tok/s) (stop, cancel=False), expert cache 98.7% hit\r\n"
+}

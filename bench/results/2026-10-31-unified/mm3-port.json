@@ -1,0 +1,50 @@
+[
+  {
+    "file": "src\\mm3\\mm3_helper.cpp",
+    "result": "ported"
+  },
+  {
+    "file": "src\\mm3\\mm3_helper.h",
+    "result": "ported"
+  },
+  {
+    "file": "src\\mm3\\mm3_kernels.cu",
+    "result": "ported"
+  },
+  {
+    "file": "src\\mm3\\mm3_kernels.cuh",
+    "result": "ported"
+  },
+  {
+    "file": "src\\mm3\\mm3_main.cpp",
+    "result": "conflict"
+  },
+  {
+    "file": "src\\mm3\\mm3_model.cu",
+    "result": "merged"
+  },
+  {
+    "file": "src\\mm3\\mm3_model.hpp",
+    "result": "merged"
+  },
+  {
+    "file": "src\\mm3\\mm3_prefill_staging.hpp",
+    "result": "ported"
+  },
+  {
+    "file": "src\\mm3\\mm3_sample.hpp",
+    "result": "ported"
+  },
+  {
+    "file": "tests\\mm3_helper_test.cu",
+    "result": "ported"
+  },
+  {
+    "file": "tests\\mm3_kv_test.cu",
+    "result": "ported"
+  },
+  {
+    "file": "tests\\mm3_prefill_staging_test.cu",
+    "result": "ported"
+  }
+]

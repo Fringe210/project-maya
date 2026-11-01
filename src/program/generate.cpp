@@ -1100,14 +1100,17 @@ static int glm_pack_generate(const Options& o) {
         // (+ the CPU lane setup's calibration reads: its threads and its PCIe share, as the engine started, and the most
         // threads a request's cpu_threads gets - its pool's size)
         std::printf("INFO context=%lld kv=%s kv_resident=%lld expert_slots=%lld expert_cache_mib=%lld engine_kind=glm-fast "
-                    "experts=%d vram_slots=%lld vram_gb=%.1f ram_slots=%lld ram_gb=%.1f mtp=%d dflash=%d vision_lend=%zu "
+                    "experts=%d trunk_experts=%d vram_slots=%lld vram_gb=%.1f ram_slots=%lld ram_gb=%.1f mtp=%d dflash=%d vision_lend=%zu "
                     "cpu_threads=%d cpu_threads_max=%d pcie_share=%.2f logit_bias=1\n",
                     (long long) o.max_context, model.kv_int8() ? "int8" : "fp16", (long long) model.kv_resident(),
                     (long long) st.pool_slots,
-                    (long long) (st.pool_gb * 1024.0), model.geometry().n_expert * (model.geometry().n_layers - model.geometry().dense_lead),
+                    (long long) (st.pool_gb * 1024.0), model.geometry().n_expert * (model.geometry().n_layers - model.geometry().dense_lead + (model.has_mtp()?1:0)),
+                    model.geometry().n_expert * (model.geometry().n_layers - model.geometry().dense_lead),
                     (long long) st.pool_slots, st.pool_gb, (long long) st.ram_slots, st.ram_gb, model.has_mtp() ? 1 : 0,
                     model.dflash_ready() ? 1 : 0, model.vision_lend_bytes(), model.cpu_lane_threads(),
                     model.cpu_lane_threads_max(), model.pcie_share());
+        if(model.helper_slots()>0)std::printf("INFO helper_slots=%d helper_allocated_bytes=%llu\n",model.helper_slots(),(unsigned long long)model.helper_bytes());
+        if(model.experts_in_vram())std::printf("INFO expert_vram_complete=1\n");
         // the Monitor's map of each GPU: what each part holds on its card, in bytes (Glm5Model::VramReport) - the
         // server finds the card NVML numbers by its PCI address and adds what NVML sees besides
         for (const auto& r : model.vram_report())
@@ -2265,14 +2268,16 @@ static int glm_pack_generate(const Options& o) {
                 const uint64_t h = sn.hits - st1.hits, m = sn.misses - st1.misses;
                 std::printf("STAT tok_s=%.2f ms_tok=%.2f vram_hit=%.4f ram_fetch=%.3f disk=%.3f promo=%.3f "
                             "vram_used=%lld vram_slots=%lld ram_used=%lld ram_slots=%lld ram_gb=%.1f vram_gb=%.1f "
-                            "disk_gb=%.1f draft_acc=%llu draft_off=%llu\n",
+                            "disk_gb=%.1f draft_acc=%llu draft_off=%llu helper=%.3f helper_fb=%.3f helper_ms=%.3f helper_held=%d helper_dead=%d expert_hip_bytes=%llu expert_cuda_bytes=%llu expert_ssd_bytes=%llu expert_gpu_complete=%d\n",
                             n / std::max(1e-9, el), 1000.0 * el / n, (double) h / (double) std::max<uint64_t>(1, h + m),
                             (double) (sn.ram_hits - st1.ram_hits) / n, (double) (sn.disk_reads - st1.disk_reads) / n,
                             (double) (sn.promotions - st1.promotions) / n, (long long) sn.pool_used,
                             (long long) sn.pool_slots, (long long) sn.ram_used, (long long) sn.ram_slots, sn.ram_gb,
-                            sn.pool_gb, std::max(0.0, sn.all_gb - sn.pool_gb - sn.ram_gb),
+                            sn.pool_gb, sn.expert_vram_complete?0.0:std::max(0.0, sn.all_gb - sn.pool_gb - sn.ram_gb),
                             (unsigned long long) (model.spec_hits_ - hits0),
-                            (unsigned long long) (model.spec_steps_ - spec0));
+                            (unsigned long long) (model.spec_steps_ - spec0),
+                            (double)(sn.helper_experts-st1.helper_experts)/n, (double)(sn.helper_fallback-st1.helper_fallback)/n,
+                            (sn.helper_ms-st1.helper_ms)/n,sn.helper_held,sn.helper_dead,(unsigned long long)sn.source_hip_bytes,(unsigned long long)sn.source_cuda_bytes,(unsigned long long)sn.expert_ssd_bytes,sn.expert_vram_complete?1:0);
             }
             bool eos_hit = false;
             for (const int64_t e : eos)
@@ -2311,7 +2316,8 @@ static int glm_pack_generate(const Options& o) {
             const uint64_t rounds0 = model.mtp_rounds_;
             uint64_t len0[9];
             std::copy(model.mtp_round_n_, model.mtp_round_n_ + 9, len0);
-            if (!model.decode_mtp(sp, max_new, on_token, n_spec, err)) {
+            const int mtp_window=req_spec>=2?req_spec:o.spec;
+            if (!model.decode_mtp(sp, max_new, on_token, n_spec, err, mtp_window>=2?mtp_window-1:0)) {
                 drop_if_poisoned(prompt, err);
                 std::printf("ERR %s\n", err.c_str());
                 return 1;
@@ -4191,6 +4197,8 @@ static int glm_pack_generate(const Options& o) {
             int req_rid = -1;
             req_spec = 0;
             req_spec_min_p = -1.0;
+            strata::core::GlmExpertHelper::set_hip_enabled(true);
+            strata::core::GlmExpertHelper::set_hip_test_fail(false);
             req_spec_n_min = -1;
             req_spec_cum = -1.0;
             req_bias.clear();
@@ -4224,6 +4232,8 @@ static int glm_pack_generate(const Options& o) {
                 else if (k == "miss_skip_from") { req_msf = std::atoi(v.c_str()); }
                 else if (k == "rid") { req_rid = std::atoi(v.c_str()); }
                 else if (k == "spec") { req_spec = std::atoi(v.c_str()); }
+                else if (k == "hip_helper_fail" && (v=="0" || v=="1")) { strata::core::GlmExpertHelper::set_hip_test_fail(v=="1"); }
+                else if (k == "hip_helper" && (v=="0" || v=="1")) { strata::core::GlmExpertHelper::set_hip_enabled(v=="1"); }
                 else if (k == "spec_min_p") { req_spec_min_p = std::atof(v.c_str()); }
                 else if (k == "spec_n_min") { req_spec_n_min = std::atoi(v.c_str()); }
                 else if (k == "spec_cum") { req_spec_cum = std::atof(v.c_str()); }
@@ -4385,7 +4395,7 @@ static int glm_pack_generate(const Options& o) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int maya_glm_main(int argc, char** argv) {
     strata::platform::env_aliases();   // (MAYA_* settings under their older names too)
     {
         // the GLM tuning settings taken from the environment, said once at start (#6), with the value used where the
@@ -9212,3 +9222,7 @@ int main(int argc, char** argv) {
     cudaFree(arena);
     return 0;
 }
+
+#ifndef MAYA_UNIFIED_BACKEND
+int main(int argc, char** argv) { return maya_glm_main(argc, argv); }
+#endif

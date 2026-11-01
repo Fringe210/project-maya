@@ -51,6 +51,9 @@ struct Options {
                                   // (from the pinned pool, on a copy stream of its own) while the model runs
     int promote_lag = 2;          // a promoted expert's slot is its own this many forwards after its copy began, the
                                   // copy waited for then (1: the next forward - plain decode then waits ~5 ms a token)
+    int helper = 0;               // the cross-vendor expert helper (--helper on: maya-mm3-hhelper.dll, a HIP build's C
+                                  // ABI, the experts outside VRAM on the second vendor's card)
+    double helper_gb = 40.0;      // (helper) the VRAM of that card given to the experts it computes
     int tp = 0;                   // > 0: the tensor-parallel path (mm3_tp.hpp) in groups of tp GPUs (1, 2 or 4)
     double cache_gb = 1.5;        // (tp) each GPU's expert cache (promote's slots), taken from its experts in VRAM -
                                   // at least this, more where a layer's experts outside VRAM need more (tight memory)
@@ -83,6 +86,12 @@ struct Stats {
     long profiled = 0;            // routings counted (save_profile writes them)
     long cpu_experts = 0;         // routed experts the CPU lane computed
     int cpu_threads = 0;          // the CPU lane's threads (0: no CPU lane)
+    long helper_experts = 0;      // routed experts the helper computed (Options::helper)
+    uint64_t helper_allocated_bytes = 0;
+    long helper_slots = 0;        // experts uploaded to the helper's card
+    long prefill_parity_layers = 0;   // explicit staging validation: serial vs overlapped routed outputs
+    double prefill_parity_max_abs = 0;
+    double t_helper = 0;          // decode: the helper's rounds (seconds)
     long promoted = 0;            // experts copied into a staging slot because they kept coming back
     double t_promo = 0;           // a forward's start waiting for those copies
     double t_sync = 0, t_lane = 0, t_token = 0;   // decode: waiting on the routing, the CPU lane, all (seconds)
@@ -164,6 +173,11 @@ public:
     int chunk() const;
     int chunk_max() const;
     void set_chunk(int c);
+    // Per-request prefill staging: -1 default, 0 serial, 1 overlap, 2 validate both (CUDA/pinned pool).
+    void set_prefill_staging(int mode);
+    /// Before reusing a request's cached prefix, restore its evicted ring rows
+    /// from the host KV cache. mode -1: default, 0: diagnostic bypass, 1: restore.
+    bool restore_prefix(int prefix, int mode, std::string& err);
     void set_prefill_gemm(int backend);
     int prefill_gemm() const;
     bool lt_available() const;

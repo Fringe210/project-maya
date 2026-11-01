@@ -82,6 +82,12 @@ struct KvHost {
     KvQ q;
 };
 
+/// Restore the last min(prefix, ring) cached positions to the VRAM ring before
+/// reusing a prompt prefix. Only tag misses are copied, bit for bit from pinned
+/// host memory; already-resident rows and the host cache remain unchanged.
+void kv_restore_prefix(uint16_t* kc, uint16_t* vc, const KvQ& q, const KvHost& hs,
+                       int prefix, int Hkv, cudaStream_t s);
+
 /// q [T][Hq][hd] in place: the per-head RMSNorm (one [hd] weight w1 = 1 + w for every head) then NeoX RoPE on the
 /// first n_rot dims at pos[t]; k [T][Hkv][hd] the same and v as it is, both written to the caches at row pos[t] as
 /// BF16.  inv [n_rot / 2] on the device.

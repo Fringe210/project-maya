@@ -1,4 +1,9 @@
 #pragma once
+// hipBLAS 2.x (ROCm 6.x) only takes hipDataType / hipblasComputeType_t in hipblasGemmEx when HIPBLAS_V2 is defined;
+// hipBLAS 3.x (ROCm 7.x) has no legacy signature. Defining it makes both SDKs use the same ABI.
+#ifndef HIPBLAS_V2
+#define HIPBLAS_V2
+#endif
 #include <hipblas/hipblas.h>
 #define CUBLAS_COMPUTE_32F HIPBLAS_COMPUTE_32F
 #define CUBLAS_DEFAULT_MATH HIPBLAS_DEFAULT_MATH
@@ -23,5 +28,10 @@
 #define cublasHandle_t hipblasHandle_t
 #define cublasSetMathMode hipblasSetMathMode
 #define cublasSetStream hipblasSetStream
+#if hipblasVersionMajor >= 3
 #define cublasSetWorkspace hipblasSetWorkspace
+#else
+// hipBLAS 2.x (ROCm 6.x) has no workspace setter: it allocates and sizes its own.
+inline hipblasStatus_t cublasSetWorkspace(hipblasHandle_t, void*, size_t) { return HIPBLAS_STATUS_SUCCESS; }
+#endif
 #define cublasStatus_t hipblasStatus_t

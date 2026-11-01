@@ -538,7 +538,7 @@ int Glm5Model::mtp_choose(int n_cap) {
 
 // ---------------------------------------------------------------- the decode
 bool Glm5Model::decode_mtp(strata::kernels::SamplerParams& sp, int64_t max_new, const std::function<bool(int)>& emit,
-                           int64_t& produced, std::string& err) {
+                           int64_t& produced, std::string& err, int draft_limit) {
     produced = 0;
     if (!mtp_ready()) {
         err = "glm mtp: the MTP decode is not set up on this model";
@@ -547,7 +547,7 @@ bool Glm5Model::decode_mtp(strata::kernels::SamplerParams& sp, int64_t max_new, 
     FastState* F = fast_;
     const Glm5Geometry& g = g_;
     const int64_t E = g.n_embd;
-    const int n_cap = std::min(mtp_draft_cap(), std::min(kWinMax - 1, 8));
+    const int n_cap = std::min(mtp_draft_cap(), std::min(draft_limit>0?draft_limit:8, std::min(kWinMax - 1, 8)));
     static const bool trace = getenv("STRATA_GLM_MTP_TRACE") != nullptr;
     // the first token: the prompt's last forward left its logits (and greedy argmax)
     int y = -1;

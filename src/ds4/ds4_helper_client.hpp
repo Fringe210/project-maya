@@ -1,0 +1,57 @@
+#pragma once
+#include "ds4_helper.h"
+#include <string>
+#include <mutex>
+#include <cstdlib>
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+struct Ds4HipHelper {
+    ds4h* h = nullptr;
+    std::mutex upload_mu;
+#if defined(_WIN32)
+    HMODULE mod = nullptr;
+    DLL_DIRECTORY_COOKIE hip_dir = nullptr;
+#endif
+    decltype(&ds4h_open) open = nullptr;
+    decltype(&ds4h_layout) layout = nullptr;
+    decltype(&ds4h_reserve) reserve = nullptr;
+    decltype(&ds4h_upload) upload = nullptr;
+    decltype(&ds4h_submit) submit = nullptr;
+    decltype(&ds4h_wait) wait = nullptr;
+    decltype(&ds4h_close) close = nullptr;
+    bool load(const std::string& path, std::string& err) {
+#if defined(_WIN32) && !defined(STRATA_USE_HIP)
+        const char* bin=std::getenv("DS4_HIP_HELPER_BIN");
+        if (!bin) bin=std::getenv("STRATA_DS4_HIP_HELPER_BIN");
+        std::string hipbin=bin ? bin : "C:/Program Files/AMD/ROCm/6.4/bin";
+        std::wstring wide(hipbin.begin(),hipbin.end());
+        hip_dir=AddDllDirectory(wide.c_str());
+        mod=LoadLibraryExA(path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+        if (!mod) { err="HIP helper DLL load failed: " + path + " (Windows " + std::to_string(GetLastError()) + ")"; return false; }
+        auto version=(int(*)())GetProcAddress(mod,"ds4h_version");
+        if (!version || version()!=1) { err="DS4 HIP helper ABI version mismatch"; return false; }
+        open=(decltype(open))GetProcAddress(mod,"ds4h_open");
+        layout=(decltype(layout))GetProcAddress(mod,"ds4h_layout");
+        reserve=(decltype(reserve))GetProcAddress(mod,"ds4h_reserve");
+        upload=(decltype(upload))GetProcAddress(mod,"ds4h_upload");
+        submit=(decltype(submit))GetProcAddress(mod,"ds4h_submit");
+        wait=(decltype(wait))GetProcAddress(mod,"ds4h_wait");
+        close=(decltype(close))GetProcAddress(mod,"ds4h_close");
+        if (!open || !layout || !reserve || !upload || !submit || !wait || !close) { err="DS4 HIP helper ABI incomplete"; return false; }
+        return true;
+#else
+        err="cross-vendor DS4 helper requires Windows CUDA primary"; return false;
+#endif
+    }
+    ~Ds4HipHelper() {
+        if (h && close) close(h);
+#if defined(_WIN32)
+        if (mod) FreeLibrary(mod);
+        if (hip_dir) RemoveDllDirectory(hip_dir);
+#endif
+    }
+};

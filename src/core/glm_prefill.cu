@@ -1012,7 +1012,7 @@ void Glm5Model::prefill_cap(int T, const char* why) {
 // more through them)
 void Glm5Model::prefill_settle(double pinned_share) {
     PrefillState* S = pf_;
-    if (S == nullptr || S->lend_pct_fixed || pinned_share >= 0.9) return;
+    if (S == nullptr || S->lend_pct_fixed || pinned_share >= 0.9 || (fast_&&fast_->hip_vram_only)) return;
     S->lend_pct = 85;
     const auto pick = S->choose(S->lend_pct);
     std::fprintf(stderr, "glm prefill: CUDA%d %.0f%% of the experts' bytes are held pinned: the pool lends at most 85%% "
@@ -1709,7 +1709,8 @@ bool Glm5Model::lend_tail(size_t limit, uint64_t& moved, uint64_t& dropped, std:
     // Retire metadata as well as DMA. With the hold set, the boundary cannot start replacement moves.
     if (!glmfast::cuda_ok(cudaStreamSynchronize(F->copy), "glm lending copies", err) || !fast_boundary(err))
         return false;
-    if (!F->bg.empty() || !F->draining.empty()) {
+    const bool cache_pending=std::any_of(F->hip_cache_moves.begin(),F->hip_cache_moves.end(),[](const auto& m){return m.key>=0;});
+    if (!F->bg.empty() || !F->draining.empty() || cache_pending) {
         err = "glm lending: tier moves were not retired";
         return false;
     }
@@ -1744,7 +1745,7 @@ bool Glm5Model::lend_tail(size_t limit, uint64_t& moved, uint64_t& dropped, std:
             ++nu;
         };
         // STRATA_GLM_LEND_DROP=1: drop the lent slots' experts as before (instead of moving them, below)
-        static const bool lend_drop = getenv("STRATA_GLM_LEND_DROP") != nullptr;
+        const bool lend_drop = F->hip_vram_only || getenv("STRATA_GLM_LEND_DROP") != nullptr;
         // an expert that leaves VRAM here goes to the RAM tier when it has room (a free slot, else a colder entry):
         // the decode after the prompt then finds it in RAM, not on disk (with the experts all in VRAM - a split
         // across many GPUs - the RAM tier holds little else, and every lent expert was a ~20 ms disk read back)
@@ -2176,7 +2177,7 @@ bool Glm5Model::prefill_half(int64_t p0, int T, std::string& err, const int32_t*
     // time across the workers and handing the batch on when all of it landed.  A DRAM-less NVMe (Kingston NV3) reads
     // 1.6 GB/s in the 256 KB pieces the workers read and 3.0 GB/s in 2 MB ones; a deeper batch bought short prompts the
     // throughput (514 tokens: 6.8 -> 5.9 s) but cost long ones the first expert's wait (8k tokens: 9.7 -> 10.7 s)
-    static const int n_readers = [] {
+    const int n_readers = F->hip_vram_ready ? 1 : [] {
         const char* v = getenv("STRATA_GLM_DISK_READERS");
         return v ? std::max(0, std::min(16, std::atoi(v))) : 0;
     }();
@@ -2201,7 +2202,12 @@ bool Glm5Model::prefill_half(int64_t p0, int T, std::string& err, const int32_t*
                 it = dq.q[(size_t) k];
             }
             uint8_t* land = S->gpin + (size_t) (k % KL) * S->gstride;
-            for (int part = 0; part < 3; ++part) fast_read_part(it.first, it.second, part, land, 0, 1);
+            const int key=it.first*g_.n_expert+it.second;
+            if(F->hip_vram_ready&&F->helper.owns(key)){
+                const size_t bytes=F->L[(size_t)it.first].blob;std::string why;
+                if(!F->helper.read_hip_bytes(key,0,bytes,land,why))throw std::runtime_error(why);
+                F->source_hip_bytes.fetch_add(bytes,std::memory_order_relaxed);
+            }else for (int part = 0; part < 3; ++part) fast_read_part(it.first, it.second, part, land, 0, 1);
             std::lock_guard<std::mutex> lk(land_mu);
             land_seq[(size_t) (k % KL)] = k;
             int l = dq.landed.load(std::memory_order_relaxed);
@@ -4142,12 +4148,12 @@ bool Glm5Model::prefill_half(int64_t p0, int T, std::string& err, const int32_t*
         std::snprintf(line, sizeof line,
                       "glm prefill: CUDA%d chunk %d/%d, %d tokens, wall %.0f ms | the copy lane %.0f ms: copies %.0f "
                       "(%.1f GB/s), ring wait %.0f, gaps %.0f, mixer windows %.0f | lead %.0f, tail %.0f | pcie %.2f GB "
-                      "(ram %.2f, disk %.2f) + %.2f GB vram | experts: staged %llu, resident %llu (%llu rows), "
+                      "(ram %.2f, %s %.2f) + %.2f GB vram | experts: staged %llu, resident %llu (%llu rows), "
                       "prestaged %llu, cpu %llu (%llu rows, %.0f ms) | plan %.0f ms host, disk wait %.0f ms, hop in "
                       "%.0f ms | layer lane %.1f/%.1f ms max/min%s\n",
                       dev_, S->chunk_i, S->chunk_n, T, wall, lane, busy,
                       busy > 1.0 ? moved / (busy / 1000.0) : 0.0, wait, inner, windows, lead, tail, moved,
-                      (double) S->ct_ram / gb, (double) S->ct_disk / gb, (double) S->ct_vram / gb,
+                      (double) S->ct_ram / gb, F->hip_vram_ready?"gpu":"disk", (double) S->ct_disk / gb, (double) S->ct_vram / gb,
                       (unsigned long long) S->ct_staged, (unsigned long long) S->ct_res,
                       (unsigned long long) S->ct_res_r, (unsigned long long) S->ct_pre,
                       (unsigned long long) S->ct_cpu_e, (unsigned long long) S->ct_cpu_r, S->ct_cpu_ms, S->ct_plan,

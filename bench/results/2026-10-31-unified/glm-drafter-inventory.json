@@ -1,0 +1,51 @@
+[
+  {
+    "file": "GLM-5.3-Flash-Maya-M-IQ2_S-00001-of-00003.gguf",
+    "metadata": {
+      "glm5-next.block_count": 46,
+      "glm5-next.leading_dense_block_count": 3,
+      "glm5-next.nextn_predict_layers": 1
+    },
+    "nextn_tensor_names": []
+  },
+  {
+    "file": "GLM-5.3-Flash-Maya-M-IQ2_S-00002-of-00003.gguf",
+    "metadata": {},
+    "nextn_tensor_names": []
+  },
+  {
+    "file": "GLM-5.3-Flash-Maya-M-IQ2_S-00003-of-00003.gguf",
+    "metadata": {},
+    "nextn_tensor_names": [
+      "blk.45.attn_k_b.weight",
+      "blk.45.attn_kv_a_mqa.weight",
+      "blk.45.attn_kv_a_norm.weight",
+      "blk.45.attn_norm.weight",
+      "blk.45.attn_output.weight",
+      "blk.45.attn_q_a.weight",
+      "blk.45.attn_q_a_norm.weight",
+      "blk.45.attn_q_b.weight",
+      "blk.45.attn_v_b.weight",
+      "blk.45.exp_probs_b.bias",
+      "blk.45.ffn_down_exps.weight",
+      "blk.45.ffn_down_shexp.weight",
+      "blk.45.ffn_gate_exps.weight",
+      "blk.45.ffn_gate_inp.weight",
+      "blk.45.ffn_gate_shexp.weight",
+      "blk.45.ffn_norm.weight",
+      "blk.45.ffn_up_exps.weight",
+      "blk.45.ffn_up_shexp.weight",
+      "blk.45.indexer.attn_k.weight",
+      "blk.45.indexer.attn_q_b.weight",
+      "blk.45.indexer.k_norm.bias",
+      "blk.45.indexer.k_norm.weight",
+      "blk.45.indexer.proj.weight",
+      "blk.45.indexer_compressor_ape.weight",
+      "blk.45.indexer_compressor_gate.weight",
+      "blk.45.nextn.eh_proj.weight",
+      "blk.45.nextn.enorm.weight",
+      "blk.45.nextn.hnorm.weight",
+      "blk.45.nextn.shared_head_norm.weight"
+    ]
+  }
+]

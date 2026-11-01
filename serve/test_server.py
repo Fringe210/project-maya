@@ -636,6 +636,12 @@ class SamplingKeys(unittest.TestCase):
         for bad in (0, 17, True, 4.0, "6"):
             self.assertFalse([x for x in self.keys(strata_tune={"spec": bad}) if x.startswith("spec=")], bad)
 
+    def test_hip_helper_tune_key(self):
+        for v in (0, 1):
+            self.assertIn(f"hip_helper={v}", self.keys(strata_tune={"hip_helper": v}))
+        for v in (-1, 2, True, 1.0, "1"):
+            self.assertFalse([k for k in self.keys(strata_tune={"hip_helper": v}) if k.startswith("hip_helper=")])
+
     def test_suffix_draft_tune_key(self):
         # the DeepSeek engine's prompt lookup for one request (an A/B in one engine): 0 or 1, nothing else
         self.assertIn("suffix_draft=0", self.keys(temperature=0, strata_tune={"suffix_draft": 0}))

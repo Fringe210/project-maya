@@ -1,0 +1,58 @@
+{
+  "command": [
+    "E:\\project-maya\\build\\maya-backend.exe",
+    "--family",
+    "minimax",
+    "--serve",
+    "--pack",
+    "H:/Maya-data/models/MiniMax-M3.1-Flash-Maya-S/maya-mm3",
+    "--max-context",
+    "8192",
+    "--kv-cache",
+    "int8",
+    "--kv-streaming",
+    "off",
+    "--dspark",
+    "off",
+    "--vision",
+    "off",
+    "--helper",
+    "off",
+    "--resident-cap",
+    "8",
+    "--staging",
+    "2",
+    "--chunk",
+    "32",
+    "--no-pin-pool"
+  ],
+  "rows": [
+    {
+      "dev": 0,
+      "pci": "0000:2d:00",
+      "total": 102641500160,
+      "free": 79936094208,
+      "weights": 11464751616,
+      "kv": 644874240,
+      "kv_ram": 0,
+      "act": 229611988,
+      "drafter": 0,
+      "window": 0,
+      "pool": 6917160960,
+      "tail": 0,
+      "borrow": 0,
+      "vision": 0,
+      "vision_own": 0,
+      "prompt": 0,
+      "tp": 0,
+      "tp_n": 1,
+      "slots": 458,
+      "ctx": 8192,
+      "layers": [
+        0,
+        59
+      ]
+    }
+  ],
+  "resident_experts_accounted_as_pool": true
+}

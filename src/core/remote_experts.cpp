@@ -1,4 +1,6 @@
 #include "strata/core/remote_experts.hpp"
+#include "glm_hip_client.hpp"
+#include <filesystem>
 
 #include "strata/kernels/cpu/expert_layout.hpp"
 #include "strata/kernels/iq_kernels.hpp"
@@ -65,6 +67,10 @@ bool check(cudaError_t result, const char* what, std::string& err, int device) {
 // (nothing may leave a destructor: caught here, so GCC 14+ emits no __cxa_call_terminate for it - a build whose
 // link finds an older libstdc++ first, as CUDA 12.0 with GCC 13 as nvcc's host compiler beside a GCC 15 default,
 // lacked that symbol)
+GlmExpertHelper::GlmExpertHelper() = default;
+std::atomic<bool> GlmExpertHelper::hip_enabled_{true};
+std::atomic<bool> GlmExpertHelper::hip_test_fail_{false};
+int GlmExpertHelper::resident() const { return (int)std::count(owned_.begin(),owned_.end(),uint8_t(1)); }
 GlmExpertHelper::~GlmExpertHelper() {
     try {
         close();
@@ -75,6 +81,20 @@ GlmExpertHelper::~GlmExpertHelper() {
 bool GlmExpertHelper::open(int device, int n_embd, int n_ff,
                            const std::vector<std::pair<void*, size_t>>& regions, std::string& err) {
     close();
+    if (const char* selected=std::getenv("STRATA_GLM_HIP_HELPER"); selected && std::strcmp(selected,"off")) {
+        hip_=std::make_unique<GlmHipHelper>();
+        std::filesystem::path dll;
+        if(const char* path=std::getenv("STRATA_GLM_HIP_HELPER_DLL"))dll=path;
+        else {
+#if defined(_WIN32)
+            char exe_path[32768];GetModuleFileNameA(nullptr,exe_path,sizeof exe_path);dll=std::filesystem::path(exe_path).parent_path()/"maya-hhelper.dll";
+#endif
+        }
+        if(!hip_->load(dll.string(),err)){hip_.reset();return false;}
+        char why[512]{};
+        if(hip_->open(device,n_embd,n_ff,&hip_->h,why,sizeof why)){err=why;hip_.reset();return false;}
+        device_=device;n_embd_=n_embd;n_ff_=n_ff;integrated_=false;hip_failed_=false;return true;
+    }
     DeviceScope scope(device);
     if (!scope.ok) { err = scope.error(device); return false; }
     int integrated = 0;
@@ -140,6 +160,14 @@ bool GlmExpertHelper::open(int device, int n_embd, int n_ff,
 }
 
 bool GlmExpertHelper::reserve(int keys, size_t requested_bytes, std::string& err) {
+    if(hip_){
+        double gb=32.0;if(const char* v=std::getenv("STRATA_GLM_HIP_HELPER_GB"))gb=std::strtod(v,nullptr);
+        if(!(gb>0&&gb<=48)){err="GLM HIP pool GB must be in (0,48]";return false;}
+        capacity_=std::min(requested_bytes,(size_t)(gb*1e9));capacity_&=~size_t(255);
+        slots_.assign((size_t)keys,{});owned_.assign((size_t)keys,0);char why[512]{};
+        if(hip_->reserve(hip_->h,keys,capacity_,why,sizeof why)){err=why;return false;}return true;
+    }
+
     DeviceScope scope(device_);
     if (!scope.ok) { err = scope.error(device_); return false; }
     slots_.assign((size_t) keys, {});
@@ -161,6 +189,9 @@ bool GlmExpertHelper::insert(int key, const uint8_t* host, size_t bytes, size_t 
         err = "GLM expert helper: invalid cache insertion"; return false;
     }
     Slot s{const_cast<uint8_t*>(host), nullptr, bytes};
+    if(hip_){char why[512]{};if(hip_->upload(hip_->h,key,host,bytes,stride,why,sizeof why)){err=why;return false;}
+        slots_[(size_t)key]=s;owned_[(size_t)key]=1;used_+=stride;return true;}
+
     if (integrated_) {
         for (const auto& r : regions_) {
             const uintptr_t offset = (uintptr_t) host - (uintptr_t) r.host;
@@ -240,9 +271,21 @@ std::vector<GlmExpertHelper::Swap> GlmExpertHelper::swaps(const std::vector<uint
     return result;
 }
 
+void GlmExpertHelper::forget_host_backing(){for(auto& s:slots_)s.host=nullptr;}
+bool GlmExpertHelper::read_hip_bytes(int key,size_t off,size_t bytes,void* out,std::string& err){
+ if(!hip_||!hip_->read_bytes){err="GLM HIP helper cannot read back GPU-resident experts";return false;}
+ std::lock_guard<std::mutex> lk(hip_->upload_mu);char why[512]{};
+ if(hip_->read_bytes(hip_->h,key,off,bytes,out,why,sizeof why)){err=why;return false;}return true;
+}
+bool GlmExpertHelper::read_hip_q8(int n,void* xq,void* hq,std::string& err) {
+    if(!hip_ || !hip_->read_q8){err="GLM HIP helper has no Q8 diagnostic readback";return false;}
+    char why[512]{};if(hip_->read_q8(hip_->h,n,xq,hq,why,sizeof why)){err=why;return false;}return true;
+}
+
 bool GlmExpertHelper::compute(int gu_type, int d_type, size_t down_off, float limit, int ne,
                               const int* keys, const float* weights, const float* x,
                               float* out, std::string& err) {
+    if(hip_){std::lock_guard<std::mutex> lk(hip_->upload_mu);if(hip_test_fail_.exchange(false)){err="injected HIP helper failure";return false;}char why[512]{};if(hip_->compute(hip_->h,gu_type,d_type,down_off,limit,ne,keys,weights,x,out,why,sizeof why)){err=why;return false;}return true;}
     namespace gf = strata::kernels::glmf;
     if (device_ < 0 || ne < 1 || ne > 8 || !gf::moe_supported(gu_type) || !gf::moe_supported(d_type)) {
         err = "GLM expert helper: unsupported expert types or route width";
@@ -303,6 +346,8 @@ bool GlmExpertHelper::compute(int gu_type, int d_type, size_t down_off, float li
 }
 
 void GlmExpertHelper::close() {
+    if(hip_){hip_.reset();device_=-1;slots_.clear();owned_.clear();used_=capacity_=0;hip_failed_=false;return;}
+
     if (device_ < 0) return;
     if (prof_ && calls_ > 0) {
         const double n = (double) calls_, kernels_ms = stage_ms_[2] + stage_ms_[3];

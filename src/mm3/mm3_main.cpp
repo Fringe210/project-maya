@@ -297,6 +297,8 @@ bool parse_gen(const std::string& line, Req& r) {
         else if (k == "think_end") r.think_end = std::atoi(v.c_str());
         else if (k == "spec") r.spec = std::atoi(v.c_str()) != 0;
         else if (k == "dspark_conf" || k == "spec_min_p") r.conf = std::strtof(v.c_str(), nullptr);
+        else if (k == "prefill_staging" && (v == "0" || v == "1" || v == "2")) r.prefill_staging = std::atoi(v.c_str());
+        else if (k == "kv_restore" && (v == "0" || v == "1")) r.kv_restore = std::atoi(v.c_str());
         else if (k == "rid") r.rid = std::atoi(v.c_str());
         // (keys this engine does not use are taken and ignored)
     }
@@ -313,6 +315,7 @@ void serve_header(mm3::Model& m, bool spec_on, const std::string& kv_fmt) {
                 st0.experts, st0.resident, st0.pooled, m.draft_block() > 0 && spec_on ? 1 : 0, kv_fmt.c_str(),
                 st0.cpu_threads, st0.experts - st0.resident, m.max_ctx());
     if (st0.kv_ring > 0) std::printf(" kv_resident=%d", st0.kv_ring);   // (KV streaming: a layer's positions in VRAM)
+    std::printf(" helper_slots=%ld helper_allocated_bytes=%llu prefill_chunk=%d", st0.helper_slots, (unsigned long long)st0.helper_allocated_bytes, m.chunk());
     std::printf("\n");
     // the same facts in the engine log (stderr) - the lines above reach the server only - for --report and a look at
     // where the model went, as the run without --serve prints them
@@ -404,13 +407,15 @@ int serve(mm3::Model& m, const std::vector<int>& eos, int chunk, bool spec_on, f
         for (const Pic& x : pics) held.push_back({x.start, x.hash});
         m.set_images(std::move(rows));
         const auto s_pre = m.stats();
-        bool ok = true, cancel = false;
+        m.set_prefill_staging(r.prefill_staging);
+        bool ok = m.restore_prefix((int) from, r.kv_restore, err), cancel = false;
         // (the sampler's rows as the head GPU's candidates unless MM3_FULL_LOGITS or the request needs whole rows)
         const bool full_env = std::getenv("MM3_FULL_LOGITS") != nullptr;
         mm3::Cands cd;
         bool use_c = false;
         // (the tensor-parallel path takes the rest of the prompt in one call - its chunks pipelined over the GPU
-        //  groups - and reports each chunk done; else calls of `chunk` tokens)
+        //  groups - and reports each chunk done; else use the model's effective chunk: load may have selected a
+        //  larger one from prefill-tune.txt without changing the caller's original Options)
         const bool whole = m.pipelined();
         const int C = std::max(1, m.chunk() > 0 ? m.chunk() : chunk);   // (the model's: prefill-tune.txt applies there)
         auto pp_line = [&](size_t done) {
@@ -419,7 +424,7 @@ int serve(mm3::Model& m, const std::vector<int>& eos, int chunk, bool spec_on, f
                         ms > 0 ? 1000.0 * (double) (done - from) / ms : 0.0, from);
             std::fflush(stdout);
         };
-        for (size_t a = from; a < r.ids.size();) {
+        for (size_t a = from; ok && a < r.ids.size();) {
             const int T = (int) (whole ? r.ids.size() - a : std::min<size_t>((size_t) C, r.ids.size() - a));
             const bool last = a + (size_t) T == r.ids.size();
             if (last) use_c = !full_env && cands_for(r, r.ids, {}, cd);   // (the first token's history: the prompt)
@@ -447,6 +452,11 @@ int serve(mm3::Model& m, const std::vector<int>& eos, int chunk, bool spec_on, f
         }
         const double t1 = now() * 1e3;
         m.set_images({});
+        if (m.stats().prefill_parity_layers > s_pre.prefill_parity_layers) {
+            std::printf("NOTE prefill staging parity: %ld layers checked, max absolute error %.9g\n",
+                        m.stats().prefill_parity_layers - s_pre.prefill_parity_layers, m.stats().prefill_parity_max_abs);
+            std::fflush(stdout);
+        }
         if (!ok) {
             std::printf("ERR %s\n", err.c_str());
             std::printf("DONE 0 %zu 0.0 0.0 cancel 0 0 0 0 0\n", r.ids.size());
@@ -486,12 +496,13 @@ int serve(mm3::Model& m, const std::vector<int>& eos, int chunk, bool spec_on, f
             const double ex = (double) ((s.profiled - s_dec.profiled)), cx = (double) (s.cpu_experts - s_dec.cpu_experts);
             const double per = produced > 0 ? 1.0 / (double) produced : 0.0;
             std::printf("STAT tok_s=%.2f ms_tok=%.2f vram_hit=%.4f cpu=%.3f vram_used=%ld ram_used=%ld vram_gb=%.2f "
-                        "ram_gb=%.2f %s=%.3f %s=0 promo=%.3f disk_gb=%.2f%s\n",
+                        "ram_gb=%.2f %s=%.3f %s=0 promo=%.3f disk_gb=%.2f%s helper=%.3f helper_slots=%ld helper_wait_ms=%.3f\n",
                         ms > 0 ? 1000.0 * (double) produced / ms : 0.0, produced > 0 ? ms / (double) produced : 0.0,
                         ex > 0 ? 1.0 - cx / ex : 1.0, cx * per, s.resident, s.pooled, s.vram_gb, s.pinned_gb,
                         s.pooled ? "ram_fetch" : "disk", cx * per, s.pooled ? "disk" : "ram_fetch",
                         (double) (s.promoted - s_dec.promoted) * per, std::max(0.0, s.all_gb - s.vram_gb - s.pinned_gb),
-                        extra);
+                        extra, (double) (s.helper_experts - s_dec.helper_experts) * per, s.helper_slots,
+                        1000.0 * (s.t_helper - s_dec.t_helper) * per);
         };
         // DSpark: a round drafts after the token, verifies the token and its drafts in one forward and keeps the drafts
         // the target agrees with - greedy: its argmax; sampling: a draft d (the draft's argmax) kept with the target's
@@ -655,6 +666,11 @@ int serve(mm3::Model& m, const std::vector<int>& eos, int chunk, bool spec_on, f
                      r.ids.size(), from, r.ids.size() - from, t1 - t0,
                      t1 > t0 ? 1000.0 * (double) (r.ids.size() - from) / (t1 - t0) : 0.0, produced, t2 - t1,
                      t2 > t1 ? 1000.0 * (double) produced / (t2 - t1) : 0.0, look > 0 ? 100.0 * cpu / look : 0.0);
+        if (se.helper_slots > 0)
+            std::fprintf(stderr, "maya mm3 serve: HIP helper %ld expert evaluations (%.1f%% of routings), "
+                         "%.1f ms waiting per generated token\n", se.helper_experts - s_dec.helper_experts,
+                         look > 0 ? 100.0 * (se.helper_experts - s_dec.helper_experts) / look : 0.0,
+                         produced > 0 ? 1000.0 * (se.t_helper - s_dec.t_helper) / produced : 0.0);
         (void) s_pre;
     }
     return 0;
@@ -1001,12 +1017,13 @@ int serve_multi(mm3::Model& m, const std::vector<int>& eos, int chunk, const std
         m.bind(best);
         m.set_images(std::move(rows));
         const int C = std::max(1, m.chunk() > 0 ? m.chunk() : chunk);
-        bool ok = true, cancel = false;
-        for (size_t a = bfrom; a < ids.size();) {
+        bool ok = m.restore_prefix((int) bfrom, g.r.kv_restore, err), cancel = false;
+        for (size_t a = bfrom; ok && a < ids.size();) {
             const int T = (int) std::min<size_t>((size_t) C, ids.size() - a);
             const bool last = a + (size_t) T == ids.size();
             if (last) g.use_c = !full_env && cands_for(g.r, ids, {}, g.cd);   // (the first token's history: the prompt)
             m.bind(best);
+            m.set_prefill_staging(g.r.prefill_staging);
             if (!m.forward(ids.data() + a, T, (int) a, last ? 1 : 0, last ? lg1.data() : nullptr, err)) {
                 ok = false;
                 break;
@@ -1533,6 +1550,7 @@ int usage() {
                  "                [--kv-resident N] [--tp-chunk N] [--tp-ffn-rows N] [--dspark-cost X]\n"
                  "                [--prefill-gemm blas|hipblaslt|auto] [--prefill-tune FILE] [--no-prefill-tune]\n"
                  "                [--calibrate-prefill OUT.json [--ids @prompt]] [--calibrate-decode OUT.json] [--verbose]\n"
+                 "                [--helper on|off [--helper-gb X]]\n"
                  "                [--serve [--parallel N (1-8: conversations at once)]] [--parallel N --rows-check G]\n"
                  "       maya-mm3 --pack DIR --encode-image FILE.rgb --size WxH --dump-image OUT [--gpus N]\n");
     return 2;
@@ -1540,7 +1558,7 @@ int usage() {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int maya_mm3_main(int argc, char** argv) {
     // cuBLAS gives the same bits run after run only with its workspace pinned (its notes on reproducibility): before
     // any handle; a setting the caller made stays
     if (std::getenv("CUBLAS_WORKSPACE_CONFIG") == nullptr) {
@@ -1605,6 +1623,11 @@ int main(int argc, char** argv) {
         else if (a == "--no-fast-decode") o.fast_decode = false;
         else if (a == "--no-promote") o.promote = false;
         else if (a == "--promote-lag") o.promote_lag = std::max(1, std::atoi(val().c_str()));
+        else if (a == "--helper") {
+            const std::string v = val();
+            o.helper = v != "off" && v != "none" ? 1 : 0;
+        }
+        else if (a == "--helper-gb") o.helper_gb = std::atof(val().c_str());
         else if (a == "--ppl") ppl = std::atoi(val().c_str());
         else if (a == "--batch") batch = val();
         else if (a == "--cpu-threads")   // (the lane's threads, the caller included: its workers one fewer - #552)
@@ -2016,6 +2039,10 @@ int main(int argc, char** argv) {
                          "%.1f staged)\n", 1e3 * t_verify / rounds, 1e3 * (s1.t_sync - s0.t_sync) / rounds,
                          1e3 * (s1.t_lane - s0.t_lane) / rounds, (double) (s1.cpu_experts - s0.cpu_experts) / rounds,
                          (double) (s1.staged - s0.staged) / rounds);
+            if (s1.helper_slots > 0)
+                std::fprintf(stderr, "  the helper: %.1f experts a round on the second card, %.1f ms\n",
+                             (double) (s1.helper_experts - s0.helper_experts) / rounds,
+                             1e3 * (s1.t_helper - s0.t_helper) / rounds);
         }
         gen = 0;
     }
@@ -2050,6 +2077,9 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "  a token: %.1f ms - routing waits %.1f ms, CPU lane %.1f ms, promotions' copies %.1f ms "
                          "(%ld promoted)\n", 1e3 * s2.t_token / done, 1e3 * s2.t_sync / done, 1e3 * s2.t_lane / done,
                          1e3 * s2.t_promo / done, s2.promoted);
+            if (s2.helper_slots > 0)
+                std::fprintf(stderr, "  the helper: %.1f experts a token on the second card, %.1f ms\n",
+                             (double) s2.helper_experts / done, 1e3 * s2.t_helper / done);
         }
     }
     if (!profile_out.empty()) {
@@ -2061,3 +2091,7 @@ int main(int argc, char** argv) {
     }
     return 0;
 }
+
+#ifndef MAYA_UNIFIED_BACKEND
+int main(int argc, char** argv) { return maya_mm3_main(argc, argv); }
+#endif

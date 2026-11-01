@@ -696,7 +696,9 @@ SHARD_RE = re.compile(r"-(\d{5})-of-(\d{5})\.gguf$")
 def exe_for_target(target: str) -> Path:
     """The engine binary for a build target name ("maya" or "maya-ds4"; EXE's and DS4_EXE's own stems) - resolved
     fresh on every call since select_build_backend() reassigns EXE/DS4_EXE once the backend (cuda/hip) is known."""
-    return {"maya": EXE, "maya-ds4": DS4_EXE, "maya-mm3": MM3_EXE}[target]
+    if BUILD.name == "build" and target in ("maya", "maya-ds4", "maya-mm3", "maya-backend"):
+        return BUILD / ("maya-backend.exe" if WIN else "maya-backend")
+    return {"maya": EXE, "maya-ds4": DS4_EXE, "maya-mm3": MM3_EXE, "maya-backend": BUILD / ("maya-backend.exe" if WIN else "maya-backend")}[target]
 GLM_ARCHS = ("glm5-next", "glm5next")             # llama.cpp's spelling and unsloth's
 # the expert profile setup passes to every GLM config (tools/make_profile.py --glm):
 # its ranking of every (layer, expert) pair decides each layer's VRAM slots and which experts start there
@@ -1812,6 +1814,8 @@ def compile_engine(archs, gpu_ids, nvcc, host_compiler, llama: Path, src: str, s
     """cmake configure + build of the `maya` target (DeepSeek: `maya-ds4`) in build/; the exact commands are
     printed as they run.  soft: a failure warns and returns None (the engine already there keeps working) instead of
     stopping."""
+    if target in ("maya", "maya-ds4", "maya-mm3"):
+        target = "maya-backend"
     def stop(what):
         msg = f"the engine build stopped while {what} (the reason is above)"
         hint = ("common causes: 'unsupported Microsoft Visual Studio version' - CUDA 12.x needs Visual Studio 2019 or "
@@ -2126,8 +2130,8 @@ def refresh_engine(cfg: dict) -> None:
     (the targets share one stamp), so this one is still the old build."""
     meta = read_json(STAMP)
     exe = Path(cfg["exe"]).resolve()
-    target = "maya-ds4" if exe == DS4_EXE.resolve() else "maya-mm3" if exe == MM3_EXE.resolve() else "maya"
-    if not meta or exe not in (EXE.resolve(), DS4_EXE.resolve(), MM3_EXE.resolve()):
+    target = "maya-backend" if exe.stem == "maya-backend" else "maya-ds4" if exe == DS4_EXE.resolve() else "maya-mm3" if exe == MM3_EXE.resolve() else "maya"
+    if not meta or (exe.stem != "maya-backend" and exe not in (EXE.resolve(), DS4_EXE.resolve(), MM3_EXE.resolve())):
         return
     src = S.source_hash(S.ENGINE_SOURCES)
     if meta.get("src") == src and target in (meta.get("targets") or ["maya"]):
@@ -4028,6 +4032,12 @@ def server_command(cfg_path: Path, a) -> tuple:
     """The dashboard's server for an installed config: (its command, its environment, what the setup's screen shows of
     it).  The engine is compiled again first when its source changed (an update)."""
     cfg = read_json(cfg_path)
+    family = config_family(cfg)
+    if cfg.get("backend", "cuda") == "cuda" and family in ("glm", "deepseek", "minimax", "qwen"):
+        cfg["exe"] = str(ROOT / "build" / ("maya-backend.exe" if WIN else "maya-backend"))
+        cfg["cwd"] = str(ROOT)
+        if "--family" not in cfg.get("args", []): cfg["args"] = ["--family", family] + cfg.get("args", [])
+        cfg_path.write_text(json.dumps(N.env_out(cfg), indent=1), encoding="utf-8")
     check_parallel(a, config_family(cfg))
     rename_programs()
     renamed = fix_config_names(cfg)                    # (v1.1.16's names: the programs, and the settings as MAYA_*)

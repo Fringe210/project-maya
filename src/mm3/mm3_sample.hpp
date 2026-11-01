@@ -25,6 +25,8 @@ struct Req {
     long long think_budget = 0;
     int think_end = -1;
     int spec = -1;          // spec=0|1: this request drafts or not (-1: as the engine was started)
+    int prefill_staging = -1;   // -1 default, 0 serial, 1 two-bank CUDA staging, 2 validate both (prefill only)
+    int kv_restore = -1;        // -1 default, 0 diagnostic bypass, 1 restore cached prefix residency
     float conf = -1.0f;     // dspark_conf=F: the drafts' confidence floor for this request (-1: the engine's)
     std::string file;       // GENI: the pictures
     std::vector<int> ids;

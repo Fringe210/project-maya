@@ -1,0 +1,109 @@
+{
+  "label": "lfu",
+  "engine": {
+    "model": "glm-5.3-flash",
+    "model_label": "GLM-5.3 · Maya-M",
+    "max_context": 262144,
+    "images": true,
+    "version": null,
+    "backend": "unified",
+    "architecture": "glm",
+    "context": 262144,
+    "kv": "fp16",
+    "kv_resident": 32768,
+    "expert_slots": 10392,
+    "expert_cache_mib": 86116,
+    "engine_kind": "glm-fast",
+    "experts": 12096,
+    "trunk_experts": 12096,
+    "vram_slots": 10392,
+    "vram_gb": "84.1",
+    "ram_slots": 32,
+    "ram_gb": "0.3",
+    "mtp": 0,
+    "dflash": 0,
+    "vision_lend": 7660117248,
+    "cpu_threads": 16,
+    "cpu_threads_max": 16,
+    "pcie_share": "0.38",
+    "logit_bias": 1,
+    "helper_slots": 3700,
+    "helper_allocated_bytes": 31993364480,
+    "expert_vram_complete": 1,
+    "kv_ctx": 262144,
+    "kv_gb": 0.92,
+    "maya_version": "1.1.43",
+    "trained_context": 1048576,
+    "speculation": []
+  },
+  "n": 8,
+  "output_tokens": 2560,
+  "decode_ms": 36618.0,
+  "decode_tok_s": 69.91097274564422,
+  "per_request": [
+    {
+      "decode": 71.3,
+      "helper_experts_per_tok": 3.659,
+      "helper_ms_per_tok": 1.282,
+      "cuda_held": 10391.0,
+      "amd_only": 1705.0,
+      "hip_readback_bytes": 6838353920.0
+    },
+    {
+      "decode": 69.9,
+      "helper_experts_per_tok": 4.803,
+      "helper_ms_per_tok": 1.542,
+      "cuda_held": 10392.0,
+      "amd_only": 1704.0,
+      "hip_readback_bytes": 7605977088.0
+    },
+    {
+      "decode": 71.6,
+      "helper_experts_per_tok": 3.353,
+      "helper_ms_per_tok": 1.193,
+      "cuda_held": 10392.0,
+      "amd_only": 1704.0,
+      "hip_readback_bytes": 8268218368.0
+    },
+    {
+      "decode": 70.4,
+      "helper_experts_per_tok": 4.566,
+      "helper_ms_per_tok": 1.46,
+      "cuda_held": 10391.0,
+      "amd_only": 1705.0,
+      "hip_readback_bytes": 8955035648.0
+    },
+    {
+      "decode": 72.3,
+      "helper_experts_per_tok": 3.041,
+      "helper_ms_per_tok": 1.09,
+      "cuda_held": 10392.0,
+      "amd_only": 1704.0,
+      "hip_readback_bytes": 9497477120.0
+    },
+    {
+      "decode": 66.8,
+      "helper_experts_per_tok": 6.891,
+      "helper_ms_per_tok": 1.967,
+      "cuda_held": 10391.0,
+      "amd_only": 1705.0,
+      "hip_readback_bytes": 10608508928.0
+    },
+    {
+      "decode": 70.1,
+      "helper_experts_per_tok": 3.931,
+      "helper_ms_per_tok": 1.369,
+      "cuda_held": 10392.0,
+      "amd_only": 1704.0,
+      "hip_readback_bytes": 11588009984.0
+    },
+    {
+      "decode": 67.4,
+      "helper_experts_per_tok": 5.819,
+      "helper_ms_per_tok": 1.752,
+      "cuda_held": 10391.0,
+      "amd_only": 1705.0,
+      "hip_readback_bytes": 12736528384.0
+    }
+  ]
+}

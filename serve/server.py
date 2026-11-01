@@ -1117,6 +1117,16 @@ class StrataEngine:
                 v = tune.get(k)
                 if isinstance(v, (int, float)) and not isinstance(v, bool) and 0.0 <= float(v) <= 1.0:
                     tune_keys += f" {k}={float(v)!r}"
+            hf = tune.get("hip_helper_fail")
+            if isinstance(hf, int) and not isinstance(hf, bool) and hf in (0, 1):
+                tune_keys += f" hip_helper_fail={hf}"
+            for key, valid in (("prefill_staging", (0, 1, 2)), ("kv_restore", (0, 1))):
+                value = tune.get(key)
+                if isinstance(value, int) and not isinstance(value, bool) and value in valid:
+                    tune_keys += f" {key}={value}"
+            hh = tune.get("hip_helper")
+            if isinstance(hh, int) and not isinstance(hh, bool) and hh in (0, 1):
+                tune_keys += f" hip_helper={hh}"
             sd = tune.get("suffix_draft")   # the DeepSeek engine's prompt lookup beside DSpark: off (0) / on (1)
             if isinstance(sd, int) and not isinstance(sd, bool) and sd in (0, 1):
                 tune_keys += f" suffix_draft={sd}"
@@ -1132,7 +1142,7 @@ class StrataEngine:
             mf = tune.get("miss_skip_from")   # ... and its first layer (STRATA_GLM_MISS_SKIP_FROM)
             if isinstance(mf, int) and not isinstance(mf, bool) and 0 <= mf <= 1000:
                 tune_keys += f" miss_skip_from={mf}"
-            sw = tune.get("spec")   # the GLM engine's DFlash decode: its verify window (the anchor and drafts), 2..16;
+            sw = tune.get("spec")   # GLM MTP / DFlash: verify window (anchor plus drafts), 2..16;
             if isinstance(sw, int) and not isinstance(sw, bool) and 1 <= sw <= 16:   # 1: no drafting (the token loop)
                 tune_keys += f" spec={sw}"
             sn = tune.get("spec_n_min")   # ... drafts it keeps whatever their confidence
@@ -2662,6 +2672,8 @@ class Service:
                                        gpu_index=int(getattr(self, "gpu_index", 0) or 0),
                                        gpu_indices=getattr(self, "gpu_indices", None),
                                        amd=getattr(self, "backend", None) == "hip",
+                                       helper_amd_index=(getattr(self, "hip_helper_index", None) if
+                                                         int((getattr(self.engine, "info", {}) or {}).get("helper_slots") or 0) > 0 else None),
                                        busy=lambda: bool(self.active or self.status.get("busy") or self.status.get("queued")))
             if isinstance(self.engine, StrataEngine):
                 self.engine.gpu_busy = self._gpu_busy     # the stall watchdog's third sign of work
@@ -2816,6 +2828,8 @@ class Service:
         report = getattr(self.engine, "vram", None)
         if not report:
             return None
+        report = gpu_map.with_hip_helper(report, cards, getattr(self.engine, "info", {}) or {},
+                                         getattr(self, "hip_helper_index", None))
         proc = getattr(self.engine, "proc", None)
         v = self.vision
         vproc = getattr(v, "proc", None) if v is not None else None
@@ -6029,6 +6043,15 @@ def main() -> int:
     svc.gpu_index = (gpu_list(cfg) or [0])[0]           # the Monitor reads the card the engine runs on (issue #51)
     svc.gpu_indices = gpu_list(cfg)                     # ... or every card of a layer split (issue #112)
     svc.backend = cfg.get("backend")                    # the Monitor's GPU reader: sysfs on AMD/HIP, NVML otherwise
+    helper_env = cfg.get("env") or {}
+    hip_index = next((helper_env[k] for k in ("STRATA_DS4_HIP_HELPER", "MAYA_DS4_HIP_HELPER", "DS4_HIP_HELPER", "STRATA_GLM_HIP_HELPER", "MAYA_GLM_HIP_HELPER")
+                      if k in helper_env), None)
+    svc.hip_helper_index = int(hip_index) if str(hip_index).isdigit() else None
+    if svc.hip_helper_index is None and cfg.get("model_name", "").startswith("minimax"):
+        helper_args = [str(x) for x in cfg.get("args") or []]
+        if "--helper" in helper_args and helper_args.index("--helper") + 1 < len(helper_args):
+            if helper_args[helper_args.index("--helper") + 1] == "on": svc.hip_helper_index = 0
+
     svc.model_label = maya_quants.config_label(cfg)     # (configs of every release: by their installer record)
     if a.config:
         svc.config_path = str(Path(a.config).resolve())  # a context change from the dashboard is saved there

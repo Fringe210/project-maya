@@ -186,6 +186,25 @@ class ReaderProcess(unittest.TestCase):
 
 
 class Sampler(unittest.TestCase):
+    def test_mixed_cuda_and_hip_device_zero_have_distinct_identity(self):
+        r = reader()
+        self.addCleanup(r._stop)
+        fake = mock.Mock()
+        fake.ok.return_value = True
+        fake.name.return_value = "AMD Radeon PRO W7800"
+        fake.pci.return_value = None
+        fake.read.return_value = {"util": 10, "mem_used": 32 << 30, "mem_total": 48 << 30}
+        with mock.patch.object(T, "amd_card", return_value=fake):
+            t = T.Telemetry(gpu_index=0, helper_amd_index=0, reader=r, start=False)
+            s = t.sample()
+        self.assertEqual(t.static["gpu_count"], 2)
+        self.assertEqual([g["index"] for g in s["gpus"]], [0, "hip:0"])
+        self.assertEqual(s["vram"][1]["backend"], "hip")
+        self.assertEqual(s["vram"][1]["device"], 0)
+        self.assertEqual(s["vram"][1]["used"], 32 << 30)
+        self.assertIsNone(s["gpus"][1]["power"])
+        json.dumps(t.snapshot())
+
     def test_sample_through_the_reader(self):
         r = reader(crash=["nvmlDeviceGetCurrPcieLinkGeneration"])
         self.addCleanup(r._stop)

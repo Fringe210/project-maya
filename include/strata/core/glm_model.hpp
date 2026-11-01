@@ -131,6 +131,11 @@ public:
     struct FastStats {
         uint64_t tokens = 0, hits = 0, misses = 0, miss_layers = 0;
         uint64_t ram_hits = 0, disk_reads = 0, promotions = 0, cpu_experts = 0, disk_skips = 0;
+        uint64_t helper_experts = 0, helper_fallback = 0;
+        uint64_t source_hip_bytes=0,source_cuda_bytes=0,expert_ssd_bytes=0;
+        bool expert_vram_complete=false;
+        double helper_ms = 0;
+        int helper_held = 0, helper_dead = 0;
         double ms = 0, miss_ms = 0, disk_ms = 0, cpu_ms = 0;
         int64_t pool_slots = 0, pool_used = 0, ram_slots = 0, ram_used = 0;
         double pool_gb = 0, ram_gb = 0;
@@ -153,6 +158,10 @@ public:
         int l0 = 0, l1 = 0;
     };
     std::vector<VramReport> vram_report() const;
+    int helper_slots() const;
+    bool experts_in_vram() const;
+    uint64_t helper_bytes() const;
+    bool helper_hip() const;
     /// Every GPU's expert pool as it was sized (part order): the device, the VRAM kept free beside it (MiB), whether the
     /// default reserve was lowered so a small card's pool holds its floor, and --expert-cache N (0: auto) - for the
     /// driver's free-VRAM lines, which name the setting that leaves room
@@ -745,7 +754,7 @@ public:
     static bool mtp_decode_wanted(int dev, int n_parts);
     bool mtp_ready() const;
     bool decode_mtp(strata::kernels::SamplerParams& sp, int64_t max_new, const std::function<bool(int)>& emit,
-                    int64_t& produced, std::string& err);
+                    int64_t& produced, std::string& err, int draft_limit = 0);
     uint64_t mtp_rounds_ = 0;                              // verify passes (spec_steps_ / spec_hits_: drafts, accepted)
     uint64_t mtp_round_n_[9] = {};                         // ... by the draft length the round used
     bool mtp_fill_prev(int32_t token, int64_t p, std::string& err);   // the token path: entry p - 1 from head_x and token

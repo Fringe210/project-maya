@@ -189,6 +189,7 @@ public:
     /// The request's repetition / frequency / presence penalties (llama.cpp's) for every pick after this - sample() and
     /// verify() alike: over the last `last_n` tokens the state has consumed (at most 4096; a verify window's row counts
     /// the drafts before it).  last_n 0 (or every penalty neutral): none, the picks exactly as without.
+    void set_hip_helper(bool enabled);
     void set_penalties(int last_n, float repeat, float freq, float present);
     /// The request's log-probabilities (GEN logprobs=<k>, ds4_logprobs.hpp) for every pick after this - sample(),
     /// sample_multi(), verify() and verify_multi() alike: logprobs() then holds a row for each token the pick returned

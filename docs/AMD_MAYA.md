@@ -391,3 +391,7 @@ seven smoke requests (arithmetic, code, a two-turn conversation, three
 prompts at 307-385 tok/s on 1.8-2.5K-token prompts and the hipBLASLt table
 loaded. The R9700 runs the full model with every expert in VRAM or a pinned
 RAM tier; the prompt speeds above were measured there.
+
+## Windows CUDA primary with AMD helper
+
+The [unified CUDA backend](UNIFIED-BACKEND.md) loads one HIP DLL with separate DeepSeek, GLM and MiniMax expert ABIs. Each architecture retains its own activation and layout. GLM cross-vendor mode uses a native-GGUF AMD pool. Its all-VRAM policy retains GPU backing for every routed expert with bounded host staging; the legacy policy keeps protected RAM backing. An optional adaptive CUDA cache uses AMD-backed copies to recover primary cache capacity without relying on expert SSD reads. See [GLM controls and measured results](GLM-CUDA-HIP.md). This is distinct from the same-backend helper described above. [DeepSeek details](DS4-CUDA-HIP.md) cover TP1, DSpark and RAM expert copies.
