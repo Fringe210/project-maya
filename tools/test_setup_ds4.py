@@ -84,8 +84,9 @@ class Manifest(unittest.TestCase):
         u = maya.file_url(m, "model-00001-of-00043.safetensors")
         self.assertTrue(u.startswith("https://huggingface.co/LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw/"))
         self.assertRegex(u, rev)
-        u = maya.file_url(m, "model-00047-of-00048.safetensors")   # the Engram tables: DeepSeek's own repo
-        self.assertTrue(u.startswith("https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017/"))
+        u = maya.file_url(m, "model-00047-of-00048.safetensors")   # the Engram tables: DeepSeek's own files, re-hosted in Maya's repo
+        self.assertTrue(u.startswith("https://huggingface.co/peasantsmith/DeepSeek-V4.1-Flash-1017-Maya-GGUF/"))
+        self.assertIn("/Engram-BF16/", u)
         self.assertRegex(u, rev)
         self.assertTrue(u.endswith("/model-00047-of-00048.safetensors"))
 
@@ -111,7 +112,8 @@ class Quant35(unittest.TestCase):
         self.assertTrue(u.startswith("https://huggingface.co/LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-3.5bpw/"))
         self.assertRegex(u, rev)
         u = maya.file_url(m, "model-00048-of-00048.safetensors")
-        self.assertTrue(u.startswith("https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017/"))
+        self.assertTrue(u.startswith("https://huggingface.co/peasantsmith/DeepSeek-V4.1-Flash-1017-Maya-GGUF/"))
+        self.assertIn("/Engram-BF16/", u)
         e29 = maya.ds4_model("exl3")   # (the same Engram tables as the 2.9-bit quant's, pinned alike)
         for n in m["sources"]:
             self.assertEqual((m["files"][n], m["sha256"][n], m["sources"][n]),

@@ -2449,7 +2449,8 @@ def file_url(m: dict, name: str) -> str:
     """A download's file on Hugging Face: from the model's repo, or the one its "sources" names for it (DeepSeek's
     Engram tables: DeepSeek's base repo)."""
     repo, revision = (m.get("sources") or {}).get(name) or (m["repo"], m["revision"])
-    return hf_url(repo, revision, m["folder"], name)
+    folder = (m.get("source_folders") or {}).get(name, m["folder"]) if name in (m.get("sources") or {}) else m["folder"]
+    return hf_url(repo, revision, folder, name)
 
 
 def hf_token() -> str | None:
@@ -5418,6 +5419,7 @@ def ds4_model(quant: str = "exl3") -> dict:
             "repo": man["repo"], "revision": man["revision"], "folder": "",
             "files": {k: v[0] for k, v in both.items()}, "sha256": {k: v[1] for k, v in both.items()},
             "sources": {k: (eg["repo"], eg["revision"]) for k in eg["files"]},
+            "source_folders": {k: eg["folder"] for k in eg["files"]} if eg.get("folder") else {},
             "download_gb": sum(v[0] for v in both.values()) / 1e9}
 
 
