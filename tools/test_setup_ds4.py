@@ -778,6 +778,11 @@ class Gguf(unittest.TestCase):
             self._fill(d, e["files"])                          # the old layout, whole
             self.assertIsNone(maya.ds4_earlier(m, d))          # (not "used as it is")
             self.assertIs(maya.ds4_upgrade_from(m, d)["revision"] == e["revision"] and True, True)
+            # the user is asked first: --yes keeps the current version (no large download nobody asked for)
+            with patch.object(maya, "say", lambda *a: None):
+                self.assertFalse(maya.ds4_upgrade_wanted(SimpleNamespace(yes=True), m, d))
+            with patch.object(maya, "choose", lambda *a, **k: 0):
+                self.assertTrue(maya.ds4_upgrade_wanted(SimpleNamespace(yes=False), m, d))
             said = []
             with patch.object(maya, "say", said.append):
                 maya.ds4_upgrade_note(m, d)

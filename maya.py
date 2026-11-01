@@ -4831,6 +4831,18 @@ def ds4_upgrade_from(m: dict, d: Path) -> dict | None:
     return None
 
 
+def ds4_upgrade_wanted(a, m: dict, d: Path) -> bool:
+    """Ask before an upgrade's download: the newer version, or the one on disk as it is (--yes keeps it: no large
+    download nobody asked for)."""
+    gb = sum(v for n, v in m["files"].items() if file_incomplete(m, d / n)) / 1e9
+    rows = [(f"Download the newer {m['folder']}", f"{gb:.0f} GB", "Closer to the original model and faster; the n-gram "
+             "table files you have are kept, and the old model files are deleted once the new ones are complete."),
+            (f"Keep my current {m['folder']}", "no download", "Starts with the version already on this PC. Run the "
+             "setup again later to update.")]
+    return choose(f"A newer {m['folder']} is available", [f"A newer version of {m['folder']} is out."], rows,
+                  1, a.yes) == 0
+
+
 def ds4_upgrade_note(m: dict, d: Path) -> None:
     """The one line that says an upgrade is under way and how much it downloads."""
     gb = sum(v for n, v in m["files"].items() if file_incomplete(m, d / n)) / 1e9
@@ -5662,6 +5674,8 @@ def set_up_ds4(a, prev: dict) -> Path | None:
         ds4_link_engram(d, m, models, prev)
     old = ds4_earlier(m, d) if gguf else None          # (an earlier layout of the files, whole: used as it is)
     upgrade = ds4_upgrade_from(m, d) if gguf else None   # (Maya-XS v1 whole: v2 is downloaded, the old model files go last)
+    if upgrade and not ds4_upgrade_wanted(a, m, d):    # (kept: the earlier layout used as it is, as ds4_earlier's)
+        old, upgrade = dict(upgrade, engram=None, layout="earlier"), None
     if upgrade:
         ds4_upgrade_note(m, d)
     shared = None
