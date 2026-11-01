@@ -2,7 +2,7 @@
  "_": "DeepSeek-V4.1-Flash-1017 as unsloth's GGUFs for maya-ds4 (maya.py's DeepSeek setup, tools/ds4/pack_gguf.py): dense weights BF16 (UD-Q8_K_XL) or Q8_0 (UD-Q4_K_XL), routed experts MXFP4, the Engram tables MXFP8; the smaller UD quants of unsloth's re-upload of 2026-10-28 (each pinned to that revision: its own \"revision\"; the Engram tables in the last shard, in IQ4_NL, Q5_K, Q6_K or MXFP8 - \"table\"; \"memory_gb\": the files but that shard) - every file pinned to a revision, with its size and sha256. Neither has the DSpark drafter or the vision tower (\"drafter\" and \"vision\" below: from DeepSeek's own checkpoint).",
  "name": "DeepSeek-V4.1-Flash-1017",
  "repo": "unsloth/DeepSeek-V4.1-Flash-1017-GGUF",
- "revision": "c991b28e7c109eed10a55075ddb46f830b5b3059",
+ "revision": "8a6ec9cf118e785a362ea94ee123c61c70553be6",
  "license": "MIT",
  "quants": {
   "UD-Q8_K_XL": {
@@ -92,7 +92,8 @@
       ]
      }
     }
-   ]
+   ],
+   "table": "UD-Q8_K_XL/DeepSeek-V4.1-Flash-1017-UD-Q8_K_XL-00008-of-00009.gguf"
   },
   "UD-Q4_K_XL": {
    "files": {
@@ -181,7 +182,8 @@
       ]
      }
     }
-   ]
+   ],
+   "table": "UD-Q4_K_XL/DeepSeek-V4.1-Flash-1017-UD-Q4_K_XL-00008-of-00009.gguf"
   },
   "UD-IQ1_S": {
    "about": "experts IQ1_S / IQ2_XXS by layer, dense weights Q5_K / Q6_K / Q8_0 / BF16, the Engram tables IQ4_NL (in its last shard)",
@@ -435,7 +437,7 @@
  "maya": {
   "_": "Maya's quants of DeepSeek-V4.1-Flash-1017 (tools/maya_quant: per-expert statistics from the model itself, error-feedback rounding of the experts), each one GGUF split with everything in it - the Engram tables too, in Q6_K (made from DeepSeek's released weights). The files are listed here once they are uploaded, with the commit they were uploaded at. \"memory_gb\": the VRAM + RAM that hold a quant - its files but the Engram tables, which stay on the SSD, and its drafter - by which the setup recommends the context.",
   "repo": "peasantsmith/DeepSeek-V4.1-Flash-1017-Maya-GGUF",
-  "revision": "c273fcbdda76a1db074c2f414cb70edbfca2f2ef",
+  "revision": "c33d87b8c7a3b7d55e71324dc82395587a870b0b",
   "quants": {
    "Maya-S": {
     "about": "experts IQ2_XXS / IQ3_XXS, the first and last four layers IQ2_S / IQ3_S, dense weights Q8_0, the Engram tables Q6_K",
@@ -514,28 +516,20 @@
     "files": {}
    },
    "Maya-XS": {
-    "about": "every routed expert IQ1_S (error-feedback rounding, calibrated layer by layer on the quantized model itself), dense weights Q8_0, the Engram tables Q6_K; with its own 2-bit DSpark drafter",
+    "about": "every routed expert IQ1_S (error-feedback rounding, calibrated layer by layer on the quantized model itself), dense weights Q8_0, the Engram tables Q6_K (Maya's pair of table shards, \"tables\" below: read from the Engram-Q6_K folder, shared with Maya-S); with its own 2-bit DSpark drafter",
     "memory_gb": 121,
     "files": {
-     "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-IQ1_S-00001-of-00005.gguf": [
-      47781530400,
-      "a0cb7966afd68bc35c46f78018d1fa1d2e4bcbe3c3baf39f60cd1733ed9ad7e5"
+     "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-v2-IQ1_S-00001-of-00003.gguf": [
+      47993866016,
+      "9d92dd13d4603dbf07720845419963693f4c07ae098e55a5aae2f207dd44d04d"
      ],
-     "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-IQ1_S-00002-of-00005.gguf": [
-      47775748128,
-      "ba5afb43adfc667436ebcfbd82d25411fa2843ee7e1d877290611cd60f93cca1"
+     "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-v2-IQ1_S-00002-of-00003.gguf": [
+      47421853600,
+      "b7f26bae6d6fccfb256c911f645289c0aec8459766ef83f6a04d7ed47c7e06c8"
      ],
-     "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-IQ1_S-00003-of-00005.gguf": [
-      19784230848,
-      "1482443bb4957c8d2f005ded365445f98558ff05c50674f9ee9a96ddabc122a4"
-     ],
-     "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-IQ1_S-00004-of-00005.gguf": [
-      80641295472,
-      "0d93315942c523d82f6dbc0a6e0e1751548e309f3963f96b82f92e8f9bc52e36"
-     ],
-     "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-IQ1_S-00005-of-00005.gguf": [
-      80643503412,
-      "39bbc8cde8b17604fed9a7ba7fc6bc9c5e72e34733657943ac049b4b9ca2d340"
+     "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-v2-IQ1_S-00003-of-00003.gguf": [
+      21422979296,
+      "62b98172562543126204fa2ff18f7d72d75353445ff93f4135d037355b409f35"
      ]
     },
     "drafter": {
@@ -551,6 +545,45 @@
        "56d47ad12d6548a8d3d50a79be96451411f18d5b77064de7b8544bb2da22988f"
       ]
      }
+    },
+    "earlier": [
+     {
+      "_": "Maya-XS v1 (the first release): 5 shards, its n-gram tables in shards 4-5 - used as it is when the folder holds it whole, nothing downloaded again",
+      "upgrade": true,
+      "revision": "c273fcbdda76a1db074c2f414cb70edbfca2f2ef",
+      "files": {
+       "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-IQ1_S-00001-of-00005.gguf": [
+        47781530400,
+        "a0cb7966afd68bc35c46f78018d1fa1d2e4bcbe3c3baf39f60cd1733ed9ad7e5"
+       ],
+       "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-IQ1_S-00002-of-00005.gguf": [
+        47775748128,
+        "ba5afb43adfc667436ebcfbd82d25411fa2843ee7e1d877290611cd60f93cca1"
+       ],
+       "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-IQ1_S-00003-of-00005.gguf": [
+        19784230848,
+        "1482443bb4957c8d2f005ded365445f98558ff05c50674f9ee9a96ddabc122a4"
+       ],
+       "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-IQ1_S-00004-of-00005.gguf": [
+        80641295472,
+        "0d93315942c523d82f6dbc0a6e0e1751548e309f3963f96b82f92e8f9bc52e36"
+       ],
+       "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-IQ1_S-00005-of-00005.gguf": [
+        80643503412,
+        "39bbc8cde8b17604fed9a7ba7fc6bc9c5e72e34733657943ac049b4b9ca2d340"
+       ]
+      }
+     }
+    ],
+    "tables": {
+     "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-IQ1_S-00004-of-00005.gguf": [
+      80641295472,
+      "0d93315942c523d82f6dbc0a6e0e1751548e309f3963f96b82f92e8f9bc52e36"
+     ],
+     "Maya-XS/DeepSeek-V4.1-Flash-1017-Maya-XS-IQ1_S-00005-of-00005.gguf": [
+      80643503412,
+      "39bbc8cde8b17604fed9a7ba7fc6bc9c5e72e34733657943ac049b4b9ca2d340"
+     ]
     }
    }
   },

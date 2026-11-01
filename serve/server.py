@@ -1,7 +1,7 @@
 """serve/server.py - plan v0.3 P8: OpenAI and Anthropic endpoints over any engine that maps token ids to tokens.
 
     python -m serve.server --engine mock --port 8095            (a scripted engine, for clients and tests)
-    python -m serve.server --engine strata --config strata.json --port 8080   (the real engine, resident)
+    python -m serve.server --engine maya --config maya.json --port 8080   (the real engine, resident)
 
 Endpoints: POST /v1/chat/completions and /v1/responses (OpenAI, stream and non-stream), POST /v1/messages (Anthropic, stream and
 non-stream), GET /v1/models, GET /models, GET /props, GET /slots, GET /health, GET /mcp. One sequence at a time behind a FIFO (plan: one resident sequence).
@@ -414,6 +414,34 @@ THINK_NOTE = ("[The server's note, not the user: your thinking was cut off there
 _THINK_BOUNDARY = re.compile(r"(?:\n|(?<![\d.])[.!?][\"')\]]*|[。！？])[ \t]*$")
 
 
+_WEAK_BOUNDARY = re.compile(r"[.!?][\"')\]]*[ \t]*")
+
+
+def think_stop_tables(tok) -> str:
+    """The engine's soft close (#746): the ids that end a sentence or line, as GEN keys - `think_stop` (the token's own
+    text ends one), `think_weak` (a bare . ! ? : one only when the token before does not end in a digit or a dot) and
+    `think_dig` (the tokens that end in a digit or a dot).  "" for a tokenizer with no token list."""
+    n = len(getattr(tok, "tokens", None) or ())
+    if not n:
+        return ""
+    stop, weak, dig = [], [], []
+    for t in range(n):
+        try:
+            text = tok.decode([t])
+        except Exception:
+            continue
+        if not text:
+            continue
+        if text[-1].isdigit() or text[-1] == ".":
+            dig.append(t)
+        if _WEAK_BOUNDARY.fullmatch(text):
+            weak.append(t)
+        elif think_boundary(text):
+            stop.append(t)
+    j = lambda v: ",".join(map(str, v))
+    return f" think_stop={j(stop)} think_weak={j(weak)} think_dig={j(dig)}" if stop or weak else ""
+
+
 def think_boundary(text: str) -> bool:
     """The reasoning so far (its last characters will do) ends a line or a sentence: a newline, or . ! ? after
     something other than a digit or another dot (not "3." of "3.0", not "..."), closing quotes or brackets allowed
@@ -512,16 +540,16 @@ def logprob_entry(tok, t, n_top: int) -> dict | None:
 
 
 def model_management_setting(cfg: dict | None, env=None) -> bool:
-    """llama.cpp's model management (/models/load, /models/unload, /models/sse, for Open WebUI's Models page): off
-    unless the run config has "model_management": true or MAYA_MODEL_MANAGEMENT says 1 / on / true / yes;
-    the environment, when set, wins over the config."""
+    """llama.cpp's model management (/models/load, /models/unload, /models/sse: load the model, free its GPU memory,
+    watch its state from an API client or a command): on unless the run config has "model_management": false or
+    MAYA_MODEL_MANAGEMENT says 0 / off / false / no; the environment, when set, wins over the config."""
     on = ("1", "on", "true", "yes")
     env = os.environ if env is None else env
     v = env.get("STRATA_MODEL_MANAGEMENT", env.get("MAYA_MODEL_MANAGEMENT"))
     if v is not None and str(v).strip():
         return str(v).strip().lower() in on
     v = (cfg or {}).get("model_management")
-    return bool(v) if v is not None else False
+    return bool(v) if v is not None else True
 
 
 def loop_guard_setting(cfg: dict | None, env=None) -> bool:
@@ -1110,6 +1138,9 @@ class StrataEngine:
         tb, te = sampling.get("_think_budget"), sampling.get("_think_end")   # the run config's (StrataService.run)
         think = f" think_budget={tb} think_end={te}" if isinstance(tb, int) and isinstance(te, int) and tb > 0 and \
             te >= 0 else ""
+        soft, stops = sampling.get("_think_soft"), sampling.get("_think_stops")
+        if think and isinstance(soft, int) and soft > 0 and isinstance(stops, str) and stops:
+            think += f" think_soft={soft}{stops}"   # (#746: the engine closes at the sentence's end, a prefix of the state)
         # setup's calibration (tools/calibrate.py): engine settings for this request only, measured without a restart
         tune, tune_keys = sampling.get("strata_tune"), ""
         if isinstance(tune, dict):
@@ -3271,8 +3302,11 @@ class Service:
             smp.pop("_think_budget", None)
             smp.pop("_think_end", None)
             smp.pop("_think_soft", None)
+            smp.pop("_think_stops", None)
         else:
             smp["_think_budget"] = max(1, tb - len(produced))
+            if isinstance(smp.get("_think_soft"), int):
+                smp["_think_soft"] = max(1, smp["_think_soft"] - len(produced))
         return smp
 
     def _loop_guard_on(self, sampling) -> bool:
@@ -3687,6 +3721,12 @@ class Service:
                     sampling = {**(sampling or {}), "_think_budget": think_budget, "_think_end": self.think_end_id}
                     if soft is not None:
                         sampling["_think_soft"] = soft
+                        if getattr(self.template, "deepseek", False):
+                            stops = getattr(self, "_think_stops", None)
+                            if stops is None:
+                                stops = self._think_stops = think_stop_tables(self.tok)
+                            if stops:
+                                sampling["_think_stops"] = stops
                 # MAYA_DS4_RESTORE_POINTS: where the DeepSeek engine keeps restore points for this prompt (never a
                 # client's own `_restore`; not with pictures, whose spans the engine reads whole)
                 if sampling and "_restore" in sampling:
@@ -3826,7 +3866,7 @@ class Service:
                                 if answered and thinks and self.think_end_id is not None:
                                     ids_k, thinks = [*ids_k, self.think_end_id], False
                                     sampling = {k: v for k, v in (sampling or {}).items()
-                                                if k not in ("_think_budget", "_think_soft", "_think_end")}
+                                                if k not in ("_think_budget", "_think_soft", "_think_end", "_think_stops")}
                                 steer = self.tok.encode(loop_guard.keep_steer(kept)) if thinks else []
                                 seg["next"] = list(seg["prompt"]) + seg["ids"] + ids_k + steer
                                 sampling = loop_guard.block_sampling(sampling, kept)
@@ -4642,7 +4682,7 @@ def make_handler(svc: Service):
         def _llamacpp_model(self, op: str):
             """llama.cpp's /models/load and /models/unload: Open WebUI's Models page (load / switch)."""
             if not getattr(svc, "model_management", False):
-                self._json(404, {"error": {"message": "model management is off (\"model_management\": true, or "
+                self._json(404, {"error": {"message": "model management is off (remove \"model_management\": false, or "
                                                       "MAYA_MODEL_MANAGEMENT=1, turns it on)"}})
                 return
             try:
@@ -4680,7 +4720,7 @@ def make_handler(svc: Service):
         def _models_sse(self):
             """llama.cpp's /models/sse: the Models page's live state, a snapshot every few seconds."""
             if not getattr(svc, "model_management", False):
-                self._json(404, {"error": {"message": "model management is off (\"model_management\": true, or "
+                self._json(404, {"error": {"message": "model management is off (remove \"model_management\": false, or "
                                                       "MAYA_MODEL_MANAGEMENT=1, turns it on)"}})
                 return
             if not self._authorized():
@@ -5852,8 +5892,8 @@ def tee_server_log(path: str) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--engine", choices=["mock", "strata"], default="mock")
-    ap.add_argument("--config", help="strata engine config (JSON: exe, args, cwd, tokenizer, model_name), "
+    ap.add_argument("--engine", choices=["mock", "maya", "strata"], default="mock")   # (strata: the old name, kept for older scripts)
+    ap.add_argument("--config", help="maya engine config (JSON: exe, args, cwd, tokenizer, model_name), "
                                      "written by setup.py")
     ap.add_argument("--host", default=None,
                     help="the address to listen on: 127.0.0.1 = this PC only (the default), 0.0.0.0 = also other devices "
@@ -5885,6 +5925,8 @@ def main() -> int:
                          "when it closes - that program ended, however it ended - the server stops as on Ctrl+C "
                          "(on Linux also when its parent process ends)")
     a = ap.parse_args()
+    if a.engine == "strata":
+        a.engine = "maya"
     maya_names.alias_env(os.environ)   # (MAYA_* settings under the names the code and the engine read)
     cfg = maya_names.env_in(json.loads(Path(a.config).read_text(encoding="utf-8-sig"))) if a.config else {}   # (a BOM: Notepad)
     apply_server_env(cfg)
@@ -5907,15 +5949,15 @@ def main() -> int:
         a.tokenizer = cfg["tokenizer"]
     tok = ByteTokenizer()
     tpath = Path(a.tokenizer)
-    if a.engine == "strata" and not (tpath / "vocab.json").exists():
+    if a.engine == "maya" and not (tpath / "vocab.json").exists():
         ap.error(f"the model's tokenizer is missing ({tpath / 'vocab.json'}); run setup again")
     if (tpath / "vocab.json").exists():
         import strata_tokenizer as ST
         tok = ST.Tokenizer.from_dir(tpath)              # with the pack's own pre-tokenizer (GLM: glm4, #27)
     hub = hub_from_config(cfg, a.mcp_config)            # before the minutes of loading: a bad entry stops here
-    if a.engine == "strata":
+    if a.engine == "maya":
         if not cfg:
-            ap.error("--engine strata needs --config")
+            ap.error("--engine maya needs --config")
         vision = None
         env = child_env(cfg)
         sampling_defaults = sampling_defaults_from_config(cfg)
@@ -6006,7 +6048,7 @@ def main() -> int:
     if getattr(engine, "multi", 0) > 1:                 # n conversations at once: n places in the FIFO
         svc.fifo.set_capacity(engine.multi)
         print(f"[maya] {engine.multi} conversations at once (--parallel)", flush=True)
-    if "reasoning_effort" not in cfg and a.engine == "strata":   # (a config without one: the model's own level)
+    if "reasoning_effort" not in cfg and a.engine == "maya":   # (a config without one: the model's own level)
         cfg = dict(cfg, reasoning_effort=maya_quants.model_defaults(cfg)[1])
     if cfg.get("reasoning_effort") or (svc.template.deepseek and cfg.get("reasoning_effort") is not None):
         try:

@@ -72,14 +72,13 @@ function Throughput({m}) {
   return html`<section class="card card--wide" aria-label="Throughput">
     <div class="speeds">
       <div class="speed"><span class="speed__label"><i class="key key--line"></i>Decode · ${many ? `${live.writing} writing` : gen ? "writing now" : live.state === "reading" ? "reading the prompt" : last ? "last request" : "waiting for a request"}</span>
-        <span class="speed__big num">${speed == null ? "–" : fmt(speed, 1)}<small>tok/s</small></span></div>
+        <div class="speed__row"><span class="speed__big num">${speed == null ? "–" : fmt(speed, 1)}<small>tok/s</small></span>
+          ${/* the peak beside the live Decode (below it on a phone), small: a reference, not a second headline */ ""}
+          <span class="speed__peak num" title=${peak ? `The highest decode speed since Maya started: ${fmt(peak.tok_s, 1)} tok/s at ${at}, ${fmt(peak.tokens)} tokens into the answer. Live speeds and finished answers count, from 32 tokens on.`
+              : "The highest decode speed since Maya started. Live speeds and finished answers count, from 32 tokens on."}>Peak ${peak ? `${fmt(peak.tok_s, 1)} tok/s` : "–"}</span></div></div>
       <div class="speed" title="Prompt tokens read per second (the prefill), counting only the tokens read - not the ones reused from the conversation cache">
         <span class="speed__label"><i class="key key--dash"></i>Prefill · ${live.state === "reading" ? "reading now" : gen ? "this request" : last ? "last request" : "waiting"}</span>
         <span class="speed__mid num">${prefill == null ? "–" : fmt(prefill)}<small>tok/s</small></span></div>
-      <div class="speed" title=${peak ? `The highest decode speed since Maya started: ${fmt(peak.tok_s, 1)} tok/s at ${at}, ${fmt(peak.tokens)} tokens into the answer. Live speeds and finished answers count, from 32 tokens on.`
-          : "The highest decode speed since Maya started. Live speeds and finished answers count, from 32 tokens on."}>
-        <span class="speed__label">Peak decode · ${peak ? at : "no answer yet"}</span>
-        <span class="speed__mid num">${peak ? fmt(peak.tok_s, 1) : "–"}<small>tok/s</small></span></div>
     </div>
     <div class=${`spark-wrap${a || b ? "" : " is-empty"}`}>
       <svg class="spark spark--hero" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
@@ -94,11 +93,18 @@ function Throughput({m}) {
       <div class="stat stat--spec" title=${spec.state === "off" ? "No drafter is running for this answer: every token comes from a full model step"
           : "Drafting: a small drafter proposes tokens and the full model checks them. Shown: the drafts the model kept of those offered, live while an answer is written, else the last answer's. A dash: nothing drafted yet."}>
         <span class="stat__label">Speculation</span>
-        <span class="stat__value stat__value--text">${spec.name == null ? "–" : spec.name}</span>
-        ${spec.state === "none" ? null : html`<span class="stat__note num">drafts kept: ${spec.state === "kept" ? spec.short : spec.text}</span>`}
+        ${/* the share kept is the figure; the drafter (DSpark / MTP / DFlash2 - the prompt lookup beside it is not named) the note */ ""}
+        <span class="stat__value num">${spec.state === "kept" ? spec.short : spec.state === "off" ? "off" : "–"}</span>
+        ${spec.state === "none" || spec.state === "off" ? null : html`<span class="stat__note">${drafterName(spec.name)}${spec.state === "kept" ? " · drafts kept" : ""}</span>`}
         ${spec.state === "kept" && spec.detail ? html`<span class="stat__note num">${spec.detail}</span>` : null}</div>
     </div>
   </section>`;
+}
+
+// The Speculation note's drafter: the model drafter alone ("DSpark + Lookup" -> "DSpark"), the lookup only when it drafts alone
+function drafterName(name) {
+  const parts = String(name || "").split(" + ").filter((p) => p && p !== "Lookup");
+  return parts.length ? parts.join(" + ") : name || "";
 }
 
 function RightNow({m}) {

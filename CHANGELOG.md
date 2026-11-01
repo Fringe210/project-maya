@@ -17,6 +17,50 @@ GLM all-VRAM decode now reuses the CUDA prompt tail and optional AMD-backed main
 
 See [configuration and verification](docs/UNIFIED-BACKEND.md) and [controlled DeepSeek helper measurements](docs/DS4-CUDA-HIP.md).
 
+## v1.1.48 - 2026-11-01
+
+Faster prompt reading for DeepSeek on several GPUs, no more re-reading after the thinking budget, and fixes.
+
+- **DeepSeek on several GPUs, with some experts read from the disk or RAM:** prompts are read in 4K-token pieces by default, which reads an 8K prompt about 24-30% faster on 3x V100 and leaves room for about 3.5% more experts on the GPUs. `--prefill-chunk` still sets it by hand.
+- **DeepSeek's thinking budget:** when the budget closes the thinking, the next turn no longer reads the whole thinking again (59 s at 32K tokens before); it continues from the cache (#746).
+- **`MAYA_DS4_READ_ORDER=arrival`:** a running answer keeps writing while another long prompt is read, instead of stopping until the read ends (#751).
+- **Setup screen:** no longer stuck at "Loading the model" when the model is already serving (#729).
+- **`--engine strata`** (the old name in older run scripts) starts the real engine again; v1.1.47 started the test engine instead (#770, thanks @cresslank, #771).
+- `tools/ds4/slot_keep_test.py` runs on Windows (#743).
+
+## v1.1.47 - 2026-11-01
+
+A better and faster DeepSeek-V4.1-Flash Maya-XS, smaller downloads for unsloth's DeepSeek quants, and a cleaner Monitor.
+
+- **DeepSeek Maya-XS v2:** about 12% closer to the original model (KLD 0.251 against 0.284) and about 20% faster at writing, at almost the same size (117 GB). The weights every token uses are now stored more compactly, which leaves room for more experts on the GPU, and 12 layers get a higher-quality format. Running the setup again asks whether to update an existing Maya-XS or keep it: the update downloads only the new model files (117 GB), keeps the n-gram tables, and removes the old files once the new ones are complete.
+- **One set of n-gram tables for every DeepSeek quant:** unsloth's quants now use Maya's Q6_K n-gram tables, shared with Maya's own quants on disk. Measured with the same scorer, they lose nothing against the larger MXFP8 tables, and the Q8 download drops from 508 to 467 GB.
+- **Monitor:** the peak decode speed sits small beside the live Decode figure, Decode and Prefill sit side by side on a phone, and Speculation shows the share of drafts kept as the main figure, with the drafter below it.
+- **Load and unload models from any API client or command:** the `/models/load`, `/models/unload` and `/models/sse` endpoints are now on by default (`"model_management": false` turns them off).
+- **`--engine maya`** for the server (the old name still works), and Maya introduces itself as Maya to MCP servers.
+
+## v1.1.46 - 2026-10-31
+
+DeepSeek reads long prompts about 5% faster on AMD Strix / Gorgon Halo, and three fixes.
+
+- **Strix / Gorgon Halo:** DeepSeek reads a 16K prompt about 5% faster (the prompt is read in 4K-token pieces on these GPUs, with the same answers).
+- **Long agent sessions:** a request whose messages carry their content as parts no longer fails with an error (#717).
+- **Tool calls:** a tool call with an unclosed parameter tag is handled as a malformed call instead of failing the request (#706).
+- **DeepSeek on Windows:** the in-place memory trim settings given in a config now reach the engine (#728).
+
+## v1.1.45 - 2026-10-31
+
+A fix for DeepSeek-V4.1-Flash on one GPU.
+
+- **DeepSeek on one GPU: no more illegal memory access after a few long prompts.** After several requests of different lengths, a long prompt on one GPU could overlap experts the engine was still loading in the background, and the next step failed with an illegal memory access (often reported later as an error in an unrelated call). The background loads are now finished before a prompt uses that memory. Prompts of 32K, 64K and 128K on one GPU run, with the same answers and the same speed as before. The problem had been there since at least v1.1.41; setups with two or more GPUs were not affected.
+
+## v1.1.44 - 2026-10-31
+
+DeepSeek-V4.1-Flash's setup lists one more of unsloth's quants, UD-IQ1_M, for PCs with about 150 GB of VRAM + RAM, and the Q8 now says in the setup how close it is to the original.
+
+- **UD-IQ1_M in the setup's list** (`--ds4-quant gguf-iq1_m`): unsloth's UD-IQ1_M, about 140 GB of VRAM + RAM plus 110 GB of n-gram tables read from the SSD (a 250 GB download). It sits after Maya's own quants, before UD-IQ3_S.
+- **The Q8 (UD-Q8_K_XL) in the setup:** its line now gives its quality next to the others' (the closest to the original model), and it and UD-Q4_K_XL are pinned to unsloth's current revision. The files are the same, so an existing install downloads nothing again.
+- **docs/MODELS.md:** the unsloth rows say in short who each is for.
+
 ## v1.1.43 - 2026-10-31
 
 DeepSeek-V4.1-Flash now runs unsloth's DeepSeek GGUF quants, and the setup lists UD-IQ3_S: close to Q8's quality for PCs
