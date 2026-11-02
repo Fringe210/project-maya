@@ -40,3 +40,5 @@ RTX PRO 6000 Blackwell + Radeon PRO W7800, DeepSeek V4.1 Flash Maya-S GGUF, 2621
 - A real 16,385-token document returned all three distributed control codes with helper bypassed and enabled. The two passes are functional checks, not a controlled prefill benchmark. Runtime reports context 262144 and DSpark enabled. No full 262K prompt stress test was run.
 
 Raw requests, timings, numerical-check logs and hashes are in `bench/results/2026-10-31-ds4-hip-helper/summary.json`. Repeat short measurements with `python bench/ds4_hip_helper_bench.py LABEL 0` or `LABEL 1` against an idle server on port 8080. Throughput depends on routing, warm state and DSpark acceptance.
+
+For agent sessions interrupted by unrelated requests, see [exact conversation reuse](DS4-CONTEXT-CACHE.md). Keeping a shared prefix alone does not park the complete conversation; the tuned local profile enables DS4 conversation slots with a bounded RAM budget.

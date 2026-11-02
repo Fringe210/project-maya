@@ -1,0 +1,63 @@
+{
+ "since": 1793612441.2563462,
+ "models": {
+  "mm3-baseline.json": {
+   "since": 1793612441.2564256,
+   "bands": {
+    "base": {
+     "input": 79807,
+     "cached": 1089,
+     "output": 164,
+     "requests": 6
+    },
+    "peak": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    }
+   },
+   "model": "minimax-m3.1-flash",
+   "quant": "Maya-S"
+  },
+  "mm3-fixed.json": {
+   "since": 1793613031.0882378,
+   "bands": {
+    "base": {
+     "input": 79952,
+     "cached": 121199,
+     "output": 225,
+     "requests": 10
+    },
+    "peak": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    }
+   },
+   "model": "minimax-m3.1-flash",
+   "quant": "Maya-S"
+  },
+  "glm-fixed.json": {
+   "since": 1793613394.0002146,
+   "bands": {
+    "base": {
+     "input": 80168,
+     "cached": 120195,
+     "output": 250,
+     "requests": 10
+    },
+    "peak": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    }
+   },
+   "model": "glm-5.3-flash",
+   "quant": "Maya-M"
+  }
+ },
+ "prices": {}
+}

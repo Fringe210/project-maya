@@ -1,0 +1,18 @@
+{
+  "family": "minimax",
+  "context": 131072,
+  "input": 40000,
+  "reused": 39999,
+  "read": 1,
+  "prompt_ms": 2062.1,
+  "wall_s": 2.585052728652954,
+  "same_answer": true,
+  "codes_ok": true,
+  "dspark": 1,
+  "fixture_sha256": "24445877c43889eb3f241f7f21ffab2a46f6ae3dfd99177dd1c2a0ecfbfdaab8",
+  "changed_middle_first_difference": 21196,
+  "changed_middle_reuse": 161,
+  "original_branch_reuse": 39999,
+  "continuation_reuse": 40000,
+  "drafts": 100
+}

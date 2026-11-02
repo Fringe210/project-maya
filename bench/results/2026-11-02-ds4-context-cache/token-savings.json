@@ -1,0 +1,25 @@
+{
+ "since": 1793610175.6520138,
+ "models": {
+  "control.json": {
+   "since": 1793610175.6520946,
+   "bands": {
+    "base": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    },
+    "peak": {
+     "input": 205431,
+     "cached": 17085,
+     "output": 186,
+     "requests": 6
+    }
+   },
+   "model": "deepseek-v4.1-flash",
+   "quant": "Maya-S"
+  }
+ },
+ "prices": {}
+}

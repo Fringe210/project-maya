@@ -1,0 +1,32 @@
+[
+  {
+    "Name": "slot-1793570057925-1.bin",
+    "Length": 361085148,
+    "LastWriteTimeUtc": "2026-11-01T21:54:18.0924121Z"
+  },
+  {
+    "Name": "slot-1793570057925-1.meta",
+    "Length": 66108,
+    "LastWriteTimeUtc": "2026-11-01T21:54:18.0954139Z"
+  },
+  {
+    "Name": "slot-1793570209184-2.bin",
+    "Length": 1091854044,
+    "LastWriteTimeUtc": "2026-11-01T21:56:49.8260338Z"
+  },
+  {
+    "Name": "slot-1793570209184-2.meta",
+    "Length": 296780,
+    "LastWriteTimeUtc": "2026-11-01T21:56:49.8280355Z"
+  },
+  {
+    "Name": "slot-1793570326981-3.bin",
+    "Length": 1152172764,
+    "LastWriteTimeUtc": "2026-11-01T21:58:47.6201066Z"
+  },
+  {
+    "Name": "slot-1793570326981-3.meta",
+    "Length": 315820,
+    "LastWriteTimeUtc": "2026-11-01T21:58:47.6321207Z"
+  }
+]

@@ -30,6 +30,30 @@ int main() {
     CHECK(pick_slot({{false, 0, 0, 4}, {false, 0, 0, 2}, {false, 0, 0, 3}}) == 1);
     // the longest reuse wins among the counted ones
     CHECK(pick_slot({{false, 600, 700, 1}, {false, 2000, 2100, 9}}) == 1);
-    std::printf("mm3_slots_test: ok\n");
+    // Serial parked prefixes: exact tokens AND image identities, never a partial match.
+    const std::vector<int> saved{10, 20, 30};
+    CHECK(mm3::exact_prefix(saved, {}, {10, 20, 30, 40}, {}));
+    CHECK(!mm3::exact_prefix(saved, {}, {10, 99, 30, 40}, {}));
+    CHECK(!mm3::exact_prefix(saved, {}, saved, {}));
+    CHECK(!mm3::exact_prefix({}, {}, {10}, {}));
+    CHECK(mm3::exact_prefix(saved, {{1, 123}}, {10, 20, 30, 40}, {{1, 123}}));
+    CHECK(!mm3::exact_prefix(saved, {{1, 123}}, {10, 20, 30, 40}, {{1, 124}}));
+    CHECK(!mm3::exact_prefix(saved, {{1, 123}}, {10, 20, 30, 40}, {}));
+    CHECK(!mm3::exact_prefix(saved, {}, {10, 20, 30, 40}, {{1, 123}}));
+    CHECK(!mm3::exact_prefix(saved, {{1, 123}}, {10, 20, 30, 40}, {{2, 123}}));
+    CHECK(mm3::exact_prefix(saved, {}, {10, 20, 30, 40}, {{3, 123}}));
+    mm3::PrefixSlots cache; cache.limit = 2; cache.cap = 10;
+    cache.slots.push_back({{10, 20}, {}, std::vector<uint8_t>(4), 1});
+    cache.slots.push_back({saved, {}, std::vector<uint8_t>(4), 2});
+    CHECK(cache.find({10, 20, 30, 40}, {}) == 1);
+    CHECK(cache.find({10, 20, 30, 40}, {}, 3) == -1);
+    CHECK(cache.find({10, 99, 30, 40}, {}) == -1);
+    CHECK(!cache.reserve(11) && cache.slots.size() == 2); // oversized saves preserve old slots
+    cache.slots[0].used = 3;
+    CHECK(cache.reserve(5) && cache.slots.size() == 1 && cache.slots[0].tokens.size() == 2);
+    CHECK(cache.bytes() == 4);
+    CHECK(cache.reserve(10) && cache.slots.empty());
+    cache.limit = 0; CHECK(!cache.reserve(1));
+    std::printf("mm3_slots_test: parallel selection and serial exact-prefix cache ok\n");
     return 0;
 }

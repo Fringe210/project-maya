@@ -1,0 +1,15 @@
+{
+  "label": "fixed",
+  "keep": 1,
+  "context": 262144,
+  "dspark": true,
+  "input_tokens": 111243,
+  "reused": 111214,
+  "read": 29,
+  "prompt_ms": 712.0,
+  "wall_s": 1.832101583480835,
+  "codes_ok": true,
+  "drafts_total": 58,
+  "fixture_sha256": "017fefbd4154a7ad0b145ca171055b43761fe9efff90432dee477edf4cb5189f",
+  "changed_prefix_ok": true
+}

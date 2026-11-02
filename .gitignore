@@ -57,3 +57,6 @@ build-vision.bat
 *.done
 /third_party/*.zip
 
+
+# Private serialized DeepSeek conversations (generated locally).
+/data/ds4-slots/

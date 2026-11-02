@@ -465,6 +465,26 @@ struct Draft::Impl {
     }
 };
 
+size_t Draft::cache_bytes() const {
+    return p->L.size() * 2 * (size_t) p->ring * p->g.n_kv * p->g.hd * sizeof(uint16_t);
+}
+bool Draft::cache_copy(uint8_t* dst, const uint8_t* src, size_t size, std::string& err) {
+    if (size != cache_bytes()) { err = "DSpark cache size mismatch"; return false; }
+    DK(cudaSetDevice(p->dev));
+    DK(cudaStreamSynchronize(p->s));
+    const size_t n = (size_t) p->ring * p->g.n_kv * p->g.hd * sizeof(uint16_t);
+    size_t at = 0;
+    for (auto& l : p->L) for (uint16_t* a : {l.kc, l.vc}) {
+        if (dst) { DK(cudaMemcpy(dst + at, a, n, cudaMemcpyDeviceToHost)); }
+        else { DK(cudaMemcpy(a, src + at, n, cudaMemcpyHostToDevice)); }
+        at += n;
+    }
+    if (src) p->anc_busy = false;
+    return true;
+}
+bool Draft::cache_save(uint8_t* dst, size_t size, std::string& err) { return cache_copy(dst, nullptr, size, err); }
+bool Draft::cache_load(const uint8_t* src, size_t size, std::string& err) { return cache_copy(nullptr, src, size, err); }
+
 Draft::Draft() : p(new Impl) {}
 Draft::~Draft() { delete p; }
 bool Draft::load(const Pack& pk, int dev, cudaStream_t s, cublasHandle_t blas, const x3::Mat* head,

@@ -1,0 +1,26 @@
+{
+  "config": "E:\\project-maya\\maya-ds4.json",
+  "backend": "E:\\project-maya\\build\\maya-backend.exe",
+  "backend_args": [
+    "--family",
+    "deepseek",
+    "--pack",
+    "E:\\Maya-data\\models\\DeepSeek-V4.1-Flash-1017-GGUF\\Maya-S\\maya-ds4",
+    "--max-context",
+    "262144",
+    "--tp",
+    "1",
+    "--threads",
+    "on",
+    "--dspark",
+    "on",
+    "--mmap-experts",
+    "off"
+  ],
+  "command": [
+    "E:\\project-maya\\.venv\\Scripts\\python.exe",
+    "E:\\project-maya\\maya.py",
+    "--config",
+    "E:\\project-maya\\maya-ds4.json"
+  ]
+}

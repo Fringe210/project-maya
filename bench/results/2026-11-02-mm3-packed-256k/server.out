@@ -1,0 +1,796 @@
+[maya] this server's lines go to E:\project-maya\bench\results\2026-11-02-mm3-packed-256k\native.log too
+[maya] sampling defaults from the config: temperature=1.0, top_p=0.95
+loading the model (the first start takes a minute or two) ...
+[maya] starting the engine: reading the model's weights ...
+[maya] still starting (20 s) - please wait ...
+[maya] still starting (41 s) - please wait ...
+[maya] still starting (61 s) - please wait ...
+[maya] still starting (81 s) - please wait ...
+[maya] still starting (102 s) - please wait ...
+[maya] still starting (122 s) - please wait ...
+[maya] still starting (142 s) - please wait ...
+[maya] still starting (163 s) - please wait ...
+[maya] still starting (183 s) - please wait ...
+[maya] still starting (204 s) - please wait ...
+[maya] still starting (224 s) - please wait ...
+[maya] still starting (245 s) - please wait ...
+[maya] still starting (265 s) - please wait ...
+[maya] still starting (285 s) - please wait ...
+[maya] still starting (306 s) - please wait ...
+[maya] still starting (326 s) - please wait ...
+[maya] still starting (347 s) - please wait ...
+[maya] still starting (367 s) - please wait ...
+[maya] still starting (387 s) - please wait ...
+[maya] still starting (408 s) - please wait ...
+[maya] still starting (428 s) - please wait ...
+[maya] still starting (448 s) - please wait ...
+[maya] weights: GGUF MiniMax-M3.1-Flash-Maya-S (dense BF16,F8_E4M3,Q6_K,Q8_0,U8, experts IQ2_Sx4,IQ2_XSx10,IQ2_XXSx150,IQ3_XXSx7)
+[maya] DSpark draft: 2563 MB on CUDA0, block 7, taps 5
+[maya] vision tower: on demand - its 1654 MB in host memory (the pack's mapping), a picture at a time on CUDA0 (up to 355 MB, given back after it), up to 451584 pixels a picture
+[maya] NOTE: pictures: the vision tower is not kept in VRAM - each picture copies it in, the first one slower (its weights read from the SSD)
+[maya] expert profile E:\project-maya\data\expert-profile-mm3.bin
+[maya] helper: 2505 experts on AMD, compact arena 37891325952 bytes, payload 37891325952, padding 0; 0 experts outside both GPUs
+[maya] helper upload parity: all 2505 experts byte-checked
+[maya] CUDA0: layers 0-59, 4791 experts resident, 48 staging slots, 965 MB free
+[maya] CPU lane: 16 threads
+[maya] CPU lane vs staging (measured): an expert 0.63 ms on the CPU lane (+0.38 ms each more), 4.08 ms to copy - 4 such experts: 0 staged
+[maya] KV cache: K int8, V int8 (rows rotated), 61 KB a position, streamed: 65536 positions a layer in VRAM, all 262144 in host memory (15 GB pinned)
+[maya] prefill: this PC's calibration (H:\Maya-data\models\MiniMax-M3.1-Flash-Maya-S\maya-mm3/prefill-tune.txt): chunk 4096, BLAS GEMMs
+[maya] images: the model's vision tower runs in the engine, up to 451584 pixels (578 tokens) a picture
+[maya] thinking level when a request names none: auto
+[maya] thinking budget: 32768 tokens (then the answer)
+[maya] model management: on (/models/load, /models/unload, /models/sse)
+ready: http://127.0.0.1:8080/v1  (OpenAI: /v1/chat/completions, /v1/responses, Anthropic: /v1/messages, context 262144 tokens, images on)
+       open http://127.0.0.1:8080/ in a browser to chat; close this window to stop the model
+[maya] reading the prompt: 4,096 of 40,000 tokens, 4 s so far
+[maya] reading the prompt: 8,192 of 40,000 tokens, 7 s so far
+[maya] reading the prompt: 12,288 of 40,000 tokens, 10 s so far
+[maya] reading the prompt: 16,384 of 40,000 tokens, 14 s so far
+[maya] reading the prompt: 20,480 of 40,000 tokens, 17 s so far
+[maya] reading the prompt: 24,576 of 40,000 tokens, 21 s so far
+[maya] reading the prompt: 28,672 of 40,000 tokens, 24 s so far
+[maya] reading the prompt: 32,768 of 40,000 tokens, 28 s so far
+[maya] reading the prompt: 36,864 of 40,000 tokens, 31 s so far
+[maya] reading the prompt: 40,000 of 40,000 tokens, 34 s so far
+[maya] answering: 1 of max 64 tokens, 38836.1 tok/s, 35 s
+[maya] done: 18 tokens in 36 s (34.4 tok/s) (stop, cancel=False), expert cache 100.0% hit
+[maya] answering: 27 of max 32 tokens, 29.3 tok/s, 1 s
+[maya] done: 32 tokens in 1 s (27.8 tok/s) (length, cancel=False), expert cache 100.0% hit
+[maya] answering: 29 of max 32 tokens, 30.5 tok/s, 1 s
+[maya] done: 32 tokens in 1 s (29.9 tok/s) (length, cancel=False), expert cache 100.0% hit
+[maya] answering: 28 of max 32 tokens, 28.9 tok/s, 1 s
+[maya] done: 32 tokens in 1 s (27.9 tok/s) (length, cancel=False), expert cache 100.0% hit
+[maya] answering: 28 of max 32 tokens, 28.6 tok/s, 1 s
+[maya] done: 32 tokens in 1 s (27.4 tok/s) (length, cancel=False), expert cache 100.0% hit
+[maya] answering: 5 of max 64 tokens, 23.0 tok/s, 1 s
+[maya] done: 18 tokens in 1 s (43.1 tok/s) (stop, cancel=False), expert cache 100.0% hit
+[maya] reading the prompt: 4,316 of 80,000 tokens, 3 s so far
+[maya] reading the prompt: 8,412 of 80,000 tokens, 6 s so far
+[maya] reading the prompt: 12,508 of 80,000 tokens, 10 s so far
+[maya] reading the prompt: 16,604 of 80,000 tokens, 13 s so far
+[maya] reading the prompt: 20,700 of 80,000 tokens, 16 s so far
+[maya] reading the prompt: 24,796 of 80,000 tokens, 20 s so far
+[maya] reading the prompt: 28,892 of 80,000 tokens, 23 s so far
+[maya] reading the prompt: 32,988 of 80,000 tokens, 27 s so far
+[maya] reading the prompt: 37,084 of 80,000 tokens, 30 s so far
+[maya] reading the prompt: 41,180 of 80,000 tokens, 34 s so far
+[maya] reading the prompt: 45,276 of 80,000 tokens, 37 s so far
+[maya] reading the prompt: 49,372 of 80,000 tokens, 41 s so far
+[maya] reading the prompt: 53,468 of 80,000 tokens, 45 s so far
+[maya] reading the prompt: 57,564 of 80,000 tokens, 48 s so far
+[maya] reading the prompt: 61,660 of 80,000 tokens, 52 s so far
+[maya] reading the prompt: 65,756 of 80,000 tokens, 57 s so far
+[maya] reading the prompt: 69,852 of 80,000 tokens, 64 s so far
+[maya] reading the prompt: 73,948 of 80,000 tokens, 70 s so far
+[maya] reading the prompt: 78,044 of 80,000 tokens, 78 s so far
+[maya] reading the prompt: 80,000 of 80,000 tokens, 82 s so far
+[maya] answering: 1 of max 64 tokens, 123361.9 tok/s, 84 s
+[maya] done: 18 tokens in 85 s (42.5 tok/s) (stop, cancel=False), expert cache 100.0% hit
+[maya] answering: 28 of max 32 tokens, 29.6 tok/s, 1 s
+[maya] done: 32 tokens in 1 s (28.4 tok/s) (length, cancel=False), expert cache 100.0% hit
+[maya] answering: 28 of max 32 tokens, 28.9 tok/s, 1 s
+[maya] done: 32 tokens in 1 s (27.8 tok/s) (length, cancel=False), expert cache 100.0% hit
+[maya] answering: 28 of max 32 tokens, 29.2 tok/s, 1 s
+[maya] done: 32 tokens in 1 s (27.9 tok/s) (length, cancel=False), expert cache 100.0% hit
+[maya] answering: 28 of max 32 tokens, 29.3 tok/s, 1 s
+[maya] done: 32 tokens in 1 s (28.1 tok/s) (length, cancel=False), expert cache 100.0% hit
+[maya] reading the prompt: 80,000 of 80,000 tokens, 1 s so far
+[maya] done: 18 tokens in 2 s (44.2 tok/s) (stop, cancel=False), expert cache 100.0% hit
+[maya] reading the prompt: 44,764 of 261,001 tokens, 4 s so far
+[maya] reading the prompt: 48,860 of 261,001 tokens, 7 s so far
+[maya] reading the prompt: 52,956 of 261,001 tokens, 11 s so far
+[maya] reading the prompt: 57,052 of 261,001 tokens, 15 s so far
+[maya] reading the prompt: 61,148 of 261,001 tokens, 18 s so far
+[maya] reading the prompt: 65,244 of 261,001 tokens, 22 s so far
+[maya] reading the prompt: 69,340 of 261,001 tokens, 29 s so far
+[maya] reading the prompt: 73,436 of 261,001 tokens, 35 s so far
+[maya] reading the prompt: 77,532 of 261,001 tokens, 43 s so far
+[maya] reading the prompt: 81,628 of 261,001 tokens, 51 s so far
+[maya] reading the prompt: 85,724 of 261,001 tokens, 59 s so far
+[maya] reading the prompt: 89,820 of 261,001 tokens, 67 s so far
+[maya] reading the prompt: 93,916 of 261,001 tokens, 75 s so far
+[maya] reading the prompt: 98,012 of 261,001 tokens, 84 s so far
+[maya] reading the prompt: 102,108 of 261,001 tokens, 93 s so far
+[maya] reading the prompt: 106,204 of 261,001 tokens, 101 s so far
+[maya] reading the prompt: 110,300 of 261,001 tokens, 111 s so far
+[maya] reading the prompt: 114,396 of 261,001 tokens, 120 s so far
+[maya] reading the prompt: 118,492 of 261,001 tokens, 129 s so far
+[maya] reading the prompt: 118,492 of 261,001 tokens, 139 s so far
+[maya] reading the prompt: 122,588 of 261,001 tokens, 149 s so far
+[maya] reading the prompt: 126,684 of 261,001 tokens, 159 s so far
+[maya] reading the prompt: 130,780 of 261,001 tokens, 161 s so far
+[maya] reading the prompt: 130,780 of 261,001 tokens, 171 s so far
+[maya] reading the prompt: 134,876 of 261,001 tokens, 172 s so far
+[maya] reading the prompt: 134,876 of 261,001 tokens, 182 s so far
+[maya] reading the prompt: 138,972 of 261,001 tokens, 193 s so far
+[maya] reading the prompt: 143,068 of 261,001 tokens, 203 s so far
+[maya] reading the prompt: 147,164 of 261,001 tokens, 214 s so far
+[maya] reading the prompt: 151,260 of 261,001 tokens, 224 s so far
+[maya] reading the prompt: 155,356 of 261,001 tokens, 234 s so far
+[maya] reading the prompt: 159,452 of 261,001 tokens, 245 s so far
+[maya] reading the prompt: 163,548 of 261,001 tokens, 255 s so far
+[maya] reading the prompt: 167,644 of 261,001 tokens, 266 s so far
+[maya] this request waited 83 s for the engine (1 request(s) behind it)
+[maya] reading the prompt: 171,740 of 261,001 tokens, 277 s so far
+[maya] reading the prompt: 175,836 of 261,001 tokens, 288 s so far
+[maya] reading the prompt: 179,932 of 261,001 tokens, 289 s so far
+[maya] reading the prompt: 179,932 of 261,001 tokens, 299 s so far
+[maya] reading the prompt: 184,028 of 261,001 tokens, 310 s so far
+[maya] reading the prompt: 188,124 of 261,001 tokens, 312 s so far
+[maya] reading the prompt: 188,124 of 261,001 tokens, 322 s so far
+[maya] reading the prompt: 192,220 of 261,001 tokens, 323 s so far
+[maya] reading the prompt: 192,220 of 261,001 tokens, 333 s so far
+[maya] reading the prompt: 196,316 of 261,001 tokens, 335 s so far
+[maya] reading the prompt: 196,316 of 261,001 tokens, 345 s so far
+[maya] reading the prompt: 200,412 of 261,001 tokens, 347 s so far
+[maya] reading the prompt: 200,412 of 261,001 tokens, 357 s so far
+[maya] reading the prompt: 204,508 of 261,001 tokens, 359 s so far
+[maya] reading the prompt: 204,508 of 261,001 tokens, 369 s so far
+[maya] reading the prompt: 208,604 of 261,001 tokens, 371 s so far
+[maya] reading the prompt: 208,604 of 261,001 tokens, 381 s so far
+[maya] reading the prompt: 212,700 of 261,001 tokens, 382 s so far
+[maya] reading the prompt: 212,700 of 261,001 tokens, 392 s so far
+[maya] reading the prompt: 216,796 of 261,001 tokens, 394 s so far
+[maya] reading the prompt: 216,796 of 261,001 tokens, 404 s so far
+[maya] reading the prompt: 220,892 of 261,001 tokens, 405 s so far
+[maya] reading the prompt: 220,892 of 261,001 tokens, 415 s so far
+[maya] reading the prompt: 224,988 of 261,001 tokens, 419 s so far
+[maya] reading the prompt: 224,988 of 261,001 tokens, 429 s so far
+[maya] reading the prompt: 229,084 of 261,001 tokens, 432 s so far
+[maya] reading the prompt: 229,084 of 261,001 tokens, 442 s so far
+[maya] reading the prompt: 233,180 of 261,001 tokens, 445 s so far
+[maya] reading the prompt: 233,180 of 261,001 tokens, 455 s so far
+[maya] reading the prompt: 237,276 of 261,001 tokens, 459 s so far
+[maya] reading the prompt: 237,276 of 261,001 tokens, 469 s so far
+[maya] reading the prompt: 241,372 of 261,001 tokens, 472 s so far
+[maya] reading the prompt: 241,372 of 261,001 tokens, 482 s so far
+[maya] reading the prompt: 245,468 of 261,001 tokens, 485 s so far
+[maya] reading the prompt: 245,468 of 261,001 tokens, 495 s so far
+[maya] reading the prompt: 249,564 of 261,001 tokens, 497 s so far
+[maya] reading the prompt: 249,564 of 261,001 tokens, 507 s so far
+[maya] reading the prompt: 253,660 of 261,001 tokens, 510 s so far
+[maya] reading the prompt: 253,660 of 261,001 tokens, 520 s so far
+[maya] reading the prompt: 257,756 of 261,001 tokens, 524 s so far
+[maya] reading the prompt: 257,756 of 261,001 tokens, 534 s so far
+[maya] reading the prompt: 261,001 of 261,001 tokens, 536 s so far
+[maya] answering: 1 of max 64 tokens, 155344.6 tok/s, 545 s
+[maya] done: 18 tokens in 546 s (34.5 tok/s) (stop, cancel=False), expert cache 100.0% hit
+[maya] answering: 28 of max 32 tokens, 29.5 tok/s, 1 s
+[maya] done: 32 tokens in 1 s (28.2 tok/s) (length, cancel=False), expert cache 100.0% hit
+[maya] answering: 28 of max 32 tokens, 29.4 tok/s, 1 s
+[maya] done: 32 tokens in 1 s (28.1 tok/s) (length, cancel=False), expert cache 100.0% hit
+[maya] answering: 28 of max 32 tokens, 29.3 tok/s, 1 s
+[maya] done: 32 tokens in 1 s (28.0 tok/s) (length, cancel=False), expert cache 100.0% hit
+[maya] answering: 28 of max 32 tokens, 29.4 tok/s, 1 s
+[maya] done: 32 tokens in 1 s (28.1 tok/s) (length, cancel=False), expert cache 100.0% hit
+[maya] reading the prompt: 261,001 of 261,001 tokens, 4 s so far
+[maya] done: 18 tokens in 5 s (47.1 tok/s) (stop, cancel=False), expert cache 100.0% hit
+[maya] done: 6 tokens in 1 s (63.8 tok/s) (stop, cancel=False), expert cache 100.0% hit
+[maya] reading the prompt: 261,001 of 261,001 tokens, 2 s so far
+[maya] done: 18 tokens in 2 s (47.3 tok/s) (stop, cancel=False), expert cache 100.0% hit
+[maya] answering: 1 of max 320 tokens, 139810.1 tok/s, 6 s
+[maya] answering: 41 of max 320 tokens, 37.5 tok/s, 7 s
+[maya] answering: 74 of max 320 tokens, 35.2 tok/s, 8 s
+[maya] answering: 96 of max 320 tokens, 30.7 tok/s, 9 s
+[maya] answering: 115 of max 320 tokens, 27.6 tok/s, 10 s
+[maya] answering: 160 of max 320 tokens, 30.4 tok/s, 12 s
+[maya] answering: 197 of max 320 tokens, 30.7 tok/s, 13 s
+[maya] answering: 228 of max 320 tokens, 30.7 tok/s, 14 s
+[maya] answering: 260 of max 320 tokens, 30.9 tok/s, 15 s
+[maya] answering: 299 of max 320 tokens, 31.6 tok/s, 16 s
+[maya] done: 320 tokens in 16 s (32.3 tok/s) (length, cancel=False), expert cache 100.0% hit
+[maya] reading the prompt: 1,690 of 1,690 tokens, 2 s so far
+[maya] done: 1 tokens in 2 s (1111.1 tok/s) (length, cancel=False)
+[maya] reading the prompt: 1,690 of 1,690 tokens, 2 s so far
+[maya] done: 1 tokens in 2 s (1000.0 tok/s) (length, cancel=False)
+[maya] reading the prompt: 1,690 of 1,690 tokens, 2 s so far
+[maya] done: 1 tokens in 2 s (666.7 tok/s) (length, cancel=False)
+[maya] reading the prompt: 1,690 of 1,690 tokens, 2 s so far
+[maya] answering: 1 of max 1 tokens, 167772.2 tok/s, 3 s
+[maya] done: 1 tokens in 3 s (1111.1 tok/s) (length, cancel=False)
+[maya] reading the prompt: 3,626 of 3,626 tokens, 3 s so far
+[maya] thinking: 27 of max 258510 tokens, 28.7 tok/s, 4 s
+[maya] thinking: 53 of max 258510 tokens, 26.8 tok/s, 5 s
+[maya] thinking: 84 of max 258510 tokens, 27.8 tok/s, 6 s
+[maya] thinking: 110 of max 258510 tokens, 27.2 tok/s, 7 s
+[maya] thinking: 136 of max 258510 tokens, 26.4 tok/s, 9 s
+[maya] thinking: 159 of max 258510 tokens, 25.7 tok/s, 10 s
+[maya] thinking: 186 of max 258510 tokens, 25.8 tok/s, 11 s
+[maya] thinking: 213 of max 258510 tokens, 25.9 tok/s, 12 s
+[maya] thinking: 245 of max 258510 tokens, 26.5 tok/s, 13 s
+[maya] thinking: 273 of max 258510 tokens, 26.6 tok/s, 14 s
+[maya] answering: 301 of max 258510 tokens, 26.7 tok/s, 15 s
+[maya] answering: 323 of max 258510 tokens, 26.2 tok/s, 16 s
+[maya] answering: 348 of max 258510 tokens, 26.1 tok/s, 17 s
+[maya] answering: 378 of max 258510 tokens, 26.4 tok/s, 18 s
+[maya] answering: 404 of max 258510 tokens, 26.3 tok/s, 19 s
+[maya] answering: 434 of max 258510 tokens, 26.4 tok/s, 20 s
+[maya] answering: 472 of max 258510 tokens, 27.0 tok/s, 21 s
+[maya] answering: 515 of max 258510 tokens, 27.8 tok/s, 22 s
+[maya] answering: 562 of max 258510 tokens, 28.8 tok/s, 23 s
+[maya] answering: 614 of max 258510 tokens, 29.9 tok/s, 24 s
+[maya] answering: 668 of max 258510 tokens, 30.9 tok/s, 25 s
+[maya] answering: 726 of max 258510 tokens, 32.1 tok/s, 26 s
+[maya] answering: 767 of max 258510 tokens, 32.4 tok/s, 27 s
+[maya] answering: 810 of max 258510 tokens, 32.8 tok/s, 28 s
+[maya] answering: 875 of max 258510 tokens, 33.9 tok/s, 29 s
+[maya] answering: 924 of max 258510 tokens, 34.3 tok/s, 30 s
+[maya] answering: 985 of max 258510 tokens, 35.3 tok/s, 31 s
+[maya] answering: 1031 of max 258510 tokens, 35.5 tok/s, 32 s
+[maya] answering: 1074 of max 258510 tokens, 35.7 tok/s, 33 s
+[maya] answering: 1099 of max 258510 tokens, 35.3 tok/s, 35 s
+[maya] answering: 1123 of max 258510 tokens, 35.0 tok/s, 36 s
+[maya] answering: 1146 of max 258510 tokens, 34.6 tok/s, 37 s
+[maya] answering: 1172 of max 258510 tokens, 34.3 tok/s, 38 s
+[maya] answering: 1193 of max 258510 tokens, 33.9 tok/s, 39 s
+[maya] answering: 1222 of max 258510 tokens, 33.8 tok/s, 40 s
+[maya] done: 1225 tokens in 40 s (33.7 tok/s) (stop, cancel=False), expert cache 100.0% hit
+[maya] reading the prompt: 4,576 of 4,576 tokens, 2 s so far
+[maya] thinking: 35 of max 257560 tokens, 37.8 tok/s, 3 s
+[maya] thinking: 67 of max 257560 tokens, 34.0 tok/s, 4 s
+[maya] thinking: 96 of max 257560 tokens, 31.8 tok/s, 5 s
+[maya] thinking: 134 of max 257560 tokens, 33.0 tok/s, 6 s
+[maya] thinking: 164 of max 257560 tokens, 32.4 tok/s, 7 s
+[maya] thinking: 192 of max 257560 tokens, 31.6 tok/s, 8 s
+[maya] thinking: 221 of max 257560 tokens, 31.2 tok/s, 9 s
+[maya] thinking: 245 of max 257560 tokens, 30.2 tok/s, 10 s
+[maya] thinking: 272 of max 257560 tokens, 29.8 tok/s, 11 s
+[maya] thinking: 301 of max 257560 tokens, 29.6 tok/s, 12 s
+[maya] thinking: 346 of max 257560 tokens, 30.8 tok/s, 13 s
+[maya] thinking: 385 of max 257560 tokens, 31.4 tok/s, 14 s
+[maya] thinking: 416 of max 257560 tokens, 31.2 tok/s, 15 s
+[maya] thinking: 469 of max 257560 tokens, 32.6 tok/s, 16 s
+[maya] thinking: 507 of max 257560 tokens, 32.8 tok/s, 17 s
+[maya] thinking: 576 of max 257560 tokens, 35.0 tok/s, 18 s
+[maya] thinking: 618 of max 257560 tokens, 35.4 tok/s, 20 s
+[maya] thinking: 647 of max 257560 tokens, 34.9 tok/s, 21 s
+[maya] thinking: 673 of max 257560 tokens, 34.4 tok/s, 22 s
+[maya] thinking: 705 of max 257560 tokens, 34.2 tok/s, 23 s
+[maya] thinking: 732 of max 257560 tokens, 33.8 tok/s, 24 s
+[maya] thinking: 760 of max 257560 tokens, 33.5 tok/s, 25 s
+[maya] thinking: 788 of max 257560 tokens, 33.3 tok/s, 26 s
+[maya] thinking: 815 of max 257560 tokens, 32.9 tok/s, 27 s
+[maya] thinking: 841 of max 257560 tokens, 32.6 tok/s, 28 s
+[maya] thinking: 874 of max 257560 tokens, 32.6 tok/s, 29 s
+[maya] thinking: 904 of max 257560 tokens, 32.5 tok/s, 30 s
+[maya] thinking: 937 of max 257560 tokens, 32.5 tok/s, 31 s
+[maya] thinking: 962 of max 257560 tokens, 32.2 tok/s, 32 s
+[maya] thinking: 991 of max 257560 tokens, 32.1 tok/s, 33 s
+[maya] thinking: 1017 of max 257560 tokens, 31.8 tok/s, 34 s
+[maya] thinking: 1048 of max 257560 tokens, 31.7 tok/s, 35 s
+[maya] thinking: 1086 of max 257560 tokens, 31.9 tok/s, 36 s
+[maya] thinking: 1116 of max 257560 tokens, 31.8 tok/s, 37 s
+[maya] thinking: 1142 of max 257560 tokens, 31.6 tok/s, 38 s
+[maya] thinking: 1174 of max 257560 tokens, 31.5 tok/s, 39 s
+[maya] thinking: 1209 of max 257560 tokens, 31.6 tok/s, 40 s
+[maya] thinking: 1239 of max 257560 tokens, 31.5 tok/s, 41 s
+[maya] thinking: 1278 of max 257560 tokens, 31.7 tok/s, 42 s
+[maya] thinking: 1324 of max 257560 tokens, 32.0 tok/s, 43 s
+[maya] thinking: 1351 of max 257560 tokens, 31.9 tok/s, 44 s
+[maya] thinking: 1390 of max 257560 tokens, 32.0 tok/s, 45 s
+[maya] thinking: 1446 of max 257560 tokens, 32.5 tok/s, 47 s
+[maya] thinking: 1482 of max 257560 tokens, 32.4 tok/s, 48 s
+[maya] thinking: 1529 of max 257560 tokens, 32.7 tok/s, 49 s
+[maya] thinking: 1559 of max 257560 tokens, 32.6 tok/s, 50 s
+[maya] thinking: 1588 of max 257560 tokens, 32.5 tok/s, 51 s
+[maya] thinking: 1614 of max 257560 tokens, 32.4 tok/s, 52 s
+[maya] thinking: 1644 of max 257560 tokens, 32.3 tok/s, 53 s
+[maya] thinking: 1671 of max 257560 tokens, 32.1 tok/s, 54 s
+[maya] thinking: 1703 of max 257560 tokens, 32.1 tok/s, 55 s
+[maya] thinking: 1740 of max 257560 tokens, 32.2 tok/s, 56 s
+[maya] thinking: 1772 of max 257560 tokens, 32.1 tok/s, 57 s
+[maya] thinking: 1806 of max 257560 tokens, 32.2 tok/s, 58 s
+[maya] thinking: 1838 of max 257560 tokens, 32.1 tok/s, 59 s
+[maya] thinking: 1862 of max 257560 tokens, 32.0 tok/s, 60 s
+[maya] thinking: 1884 of max 257560 tokens, 31.8 tok/s, 61 s
+[maya] thinking: 1911 of max 257560 tokens, 31.7 tok/s, 62 s
+[maya] thinking: 1943 of max 257560 tokens, 31.7 tok/s, 63 s
+[maya] thinking: 1976 of max 257560 tokens, 31.7 tok/s, 64 s
+[maya] thinking: 2005 of max 257560 tokens, 31.7 tok/s, 65 s
+[maya] thinking: 2031 of max 257560 tokens, 31.6 tok/s, 66 s
+[maya] thinking: 2059 of max 257560 tokens, 31.5 tok/s, 67 s
+[maya] thinking: 2085 of max 257560 tokens, 31.4 tok/s, 68 s
+[maya] thinking: 2115 of max 257560 tokens, 31.3 tok/s, 70 s
+[maya] thinking: 2154 of max 257560 tokens, 31.4 tok/s, 71 s
+[maya] thinking: 2188 of max 257560 tokens, 31.5 tok/s, 72 s
+[maya] thinking: 2214 of max 257560 tokens, 31.4 tok/s, 73 s
+[maya] thinking: 2246 of max 257560 tokens, 31.4 tok/s, 74 s
+[maya] thinking: 2304 of max 257560 tokens, 31.7 tok/s, 75 s
+[maya] thinking: 2330 of max 257560 tokens, 31.6 tok/s, 76 s
+[maya] thinking: 2373 of max 257560 tokens, 31.7 tok/s, 77 s
+[maya] thinking: 2405 of max 257560 tokens, 31.7 tok/s, 78 s
+[maya] thinking: 2470 of max 257560 tokens, 32.1 tok/s, 79 s
+[maya] thinking: 2529 of max 257560 tokens, 32.5 tok/s, 80 s
+[maya] thinking: 2560 of max 257560 tokens, 32.4 tok/s, 81 s
+[maya] thinking: 2589 of max 257560 tokens, 32.4 tok/s, 82 s
+[maya] thinking: 2620 of max 257560 tokens, 32.3 tok/s, 83 s
+[maya] thinking: 2669 of max 257560 tokens, 32.5 tok/s, 84 s
+[maya] thinking: 2699 of max 257560 tokens, 32.5 tok/s, 85 s
+[maya] thinking: 2740 of max 257560 tokens, 32.6 tok/s, 86 s
+[maya] thinking: 2770 of max 257560 tokens, 32.5 tok/s, 87 s
+[maya] thinking: 2809 of max 257560 tokens, 32.6 tok/s, 88 s
+[maya] thinking: 2851 of max 257560 tokens, 32.7 tok/s, 89 s
+[maya] thinking: 2890 of max 257560 tokens, 32.7 tok/s, 90 s
+[maya] thinking: 2922 of max 257560 tokens, 32.7 tok/s, 91 s
+[maya] thinking: 2973 of max 257560 tokens, 32.9 tok/s, 92 s
+[maya] thinking: 3036 of max 257560 tokens, 33.2 tok/s, 93 s
+[maya] thinking: 3100 of max 257560 tokens, 33.5 tok/s, 94 s
+[maya] thinking: 3153 of max 257560 tokens, 33.7 tok/s, 96 s
+[maya] thinking: 3182 of max 257560 tokens, 33.7 tok/s, 97 s
+[maya] thinking: 3214 of max 257560 tokens, 33.6 tok/s, 98 s
+[maya] thinking: 3239 of max 257560 tokens, 33.5 tok/s, 99 s
+[maya] thinking: 3269 of max 257560 tokens, 33.5 tok/s, 100 s
+[maya] thinking: 3296 of max 257560 tokens, 33.4 tok/s, 101 s
+[maya] thinking: 3330 of max 257560 tokens, 33.4 tok/s, 102 s
+[maya] thinking: 3370 of max 257560 tokens, 33.4 tok/s, 103 s
+[maya] thinking: 3406 of max 257560 tokens, 33.4 tok/s, 104 s
+[maya] thinking: 3452 of max 257560 tokens, 33.5 tok/s, 105 s
+[maya] thinking: 3482 of max 257560 tokens, 33.5 tok/s, 106 s
+[maya] thinking: 3514 of max 257560 tokens, 33.5 tok/s, 107 s
+[maya] thinking: 3544 of max 257560 tokens, 33.4 tok/s, 108 s
+[maya] thinking: 3577 of max 257560 tokens, 33.4 tok/s, 109 s
+[maya] thinking: 3608 of max 257560 tokens, 33.4 tok/s, 110 s
+[maya] thinking: 3634 of max 257560 tokens, 33.3 tok/s, 111 s
+[maya] thinking: 3660 of max 257560 tokens, 33.2 tok/s, 112 s
+[maya] thinking: 3689 of max 257560 tokens, 33.2 tok/s, 113 s
+[maya] thinking: 3729 of max 257560 tokens, 33.2 tok/s, 114 s
+[maya] thinking: 3757 of max 257560 tokens, 33.2 tok/s, 115 s
+[maya] thinking: 3792 of max 257560 tokens, 33.2 tok/s, 116 s
+[maya] thinking: 3828 of max 257560 tokens, 33.2 tok/s, 117 s
+[maya] thinking: 3858 of max 257560 tokens, 33.2 tok/s, 118 s
+[maya] thinking: 3896 of max 257560 tokens, 33.2 tok/s, 120 s
+[maya] thinking: 3938 of max 257560 tokens, 33.2 tok/s, 121 s
+[maya] thinking: 3999 of max 257560 tokens, 33.4 tok/s, 122 s
+[maya] thinking: 4052 of max 257560 tokens, 33.5 tok/s, 123 s
+[maya] thinking: 4086 of max 257560 tokens, 33.5 tok/s, 124 s
+[maya] thinking: 4148 of max 257560 tokens, 33.7 tok/s, 125 s
+[maya] thinking: 4200 of max 257560 tokens, 33.9 tok/s, 126 s
+[maya] thinking: 4244 of max 257560 tokens, 33.9 tok/s, 127 s
+[maya] thinking: 4279 of max 257560 tokens, 33.9 tok/s, 128 s
+[maya] thinking: 4311 of max 257560 tokens, 33.9 tok/s, 129 s
+[maya] thinking: 4344 of max 257560 tokens, 33.9 tok/s, 130 s
+[maya] thinking: 4370 of max 257560 tokens, 33.8 tok/s, 131 s
+[maya] thinking: 4401 of max 257560 tokens, 33.8 tok/s, 132 s
+[maya] thinking: 4438 of max 257560 tokens, 33.8 tok/s, 133 s
+[maya] thinking: 4476 of max 257560 tokens, 33.8 tok/s, 134 s
+[maya] thinking: 4507 of max 257560 tokens, 33.8 tok/s, 135 s
+[maya] thinking: 4539 of max 257560 tokens, 33.8 tok/s, 136 s
+[maya] thinking: 4586 of max 257560 tokens, 33.9 tok/s, 137 s
+[maya] thinking: 4614 of max 257560 tokens, 33.8 tok/s, 138 s
+[maya] thinking: 4643 of max 257560 tokens, 33.8 tok/s, 139 s
+[maya] thinking: 4670 of max 257560 tokens, 33.7 tok/s, 140 s
+[maya] thinking: 4704 of max 257560 tokens, 33.7 tok/s, 141 s
+[maya] thinking: 4734 of max 257560 tokens, 33.7 tok/s, 142 s
+[maya] thinking: 4758 of max 257560 tokens, 33.6 tok/s, 144 s
+[maya] thinking: 4784 of max 257560 tokens, 33.6 tok/s, 145 s
+[maya] thinking: 4811 of max 257560 tokens, 33.5 tok/s, 146 s
+[maya] thinking: 4842 of max 257560 tokens, 33.5 tok/s, 147 s
+[maya] thinking: 4870 of max 257560 tokens, 33.4 tok/s, 148 s
+[maya] thinking: 4896 of max 257560 tokens, 33.4 tok/s, 149 s
+[maya] thinking: 4920 of max 257560 tokens, 33.3 tok/s, 150 s
+[maya] thinking: 4950 of max 257560 tokens, 33.3 tok/s, 151 s
+[maya] thinking: 4973 of max 257560 tokens, 33.2 tok/s, 152 s
+[maya] thinking: 4999 of max 257560 tokens, 33.2 tok/s, 153 s
+[maya] thinking: 5025 of max 257560 tokens, 33.1 tok/s, 154 s
+[maya] thinking: 5052 of max 257560 tokens, 33.1 tok/s, 155 s
+[maya] thinking: 5083 of max 257560 tokens, 33.0 tok/s, 156 s
+[maya] thinking: 5112 of max 257560 tokens, 33.0 tok/s, 157 s
+[maya] thinking: 5144 of max 257560 tokens, 33.0 tok/s, 158 s
+[maya] thinking: 5185 of max 257560 tokens, 33.1 tok/s, 159 s
+[maya] thinking: 5242 of max 257560 tokens, 33.2 tok/s, 160 s
+[maya] thinking: 5265 of max 257560 tokens, 33.1 tok/s, 161 s
+[maya] thinking: 5290 of max 257560 tokens, 33.1 tok/s, 162 s
+[maya] thinking: 5322 of max 257560 tokens, 33.1 tok/s, 163 s
+[maya] thinking: 5355 of max 257560 tokens, 33.0 tok/s, 164 s
+[maya] thinking: 5385 of max 257560 tokens, 33.0 tok/s, 165 s
+[maya] thinking: 5416 of max 257560 tokens, 33.0 tok/s, 166 s
+[maya] thinking: 5440 of max 257560 tokens, 32.9 tok/s, 167 s
+[maya] thinking: 5480 of max 257560 tokens, 33.0 tok/s, 168 s
+[maya] thinking: 5513 of max 257560 tokens, 33.0 tok/s, 169 s
+[maya] thinking: 5540 of max 257560 tokens, 32.9 tok/s, 170 s
+[maya] thinking: 5566 of max 257560 tokens, 32.9 tok/s, 171 s
+[maya] thinking: 5600 of max 257560 tokens, 32.9 tok/s, 172 s
+[maya] thinking: 5626 of max 257560 tokens, 32.8 tok/s, 173 s
+[maya] thinking: 5656 of max 257560 tokens, 32.8 tok/s, 174 s
+[maya] thinking: 5682 of max 257560 tokens, 32.8 tok/s, 176 s
+[maya] thinking: 5726 of max 257560 tokens, 32.8 tok/s, 177 s
+[maya] thinking: 5754 of max 257560 tokens, 32.8 tok/s, 178 s
+[maya] thinking: 5779 of max 257560 tokens, 32.7 tok/s, 179 s
+[maya] thinking: 5811 of max 257560 tokens, 32.7 tok/s, 180 s
+[maya] thinking: 5854 of max 257560 tokens, 32.8 tok/s, 181 s
+[maya] thinking: 5889 of max 257560 tokens, 32.8 tok/s, 182 s
+[maya] thinking: 5918 of max 257560 tokens, 32.7 tok/s, 183 s
+[maya] thinking: 5945 of max 257560 tokens, 32.7 tok/s, 184 s
+[maya] thinking: 5967 of max 257560 tokens, 32.6 tok/s, 185 s
+[maya] thinking: 5989 of max 257560 tokens, 32.6 tok/s, 186 s
+[maya] thinking: 6016 of max 257560 tokens, 32.5 tok/s, 187 s
+[maya] thinking: 6042 of max 257560 tokens, 32.5 tok/s, 188 s
+[maya] thinking: 6073 of max 257560 tokens, 32.5 tok/s, 189 s
+[maya] thinking: 6128 of max 257560 tokens, 32.6 tok/s, 190 s
+[maya] thinking: 6202 of max 257560 tokens, 32.8 tok/s, 191 s
+[maya] thinking: 6284 of max 257560 tokens, 33.0 tok/s, 192 s
+[maya] thinking: 6354 of max 257560 tokens, 33.2 tok/s, 193 s
+[maya] thinking: 6394 of max 257560 tokens, 33.2 tok/s, 194 s
+[maya] thinking: 6462 of max 257560 tokens, 33.4 tok/s, 195 s
+[maya] thinking: 6511 of max 257560 tokens, 33.5 tok/s, 196 s
+[maya] thinking: 6568 of max 257560 tokens, 33.6 tok/s, 198 s
+[maya] thinking: 6627 of max 257560 tokens, 33.7 tok/s, 199 s
+[maya] thinking: 6680 of max 257560 tokens, 33.8 tok/s, 200 s
+[maya] thinking: 6729 of max 257560 tokens, 33.9 tok/s, 201 s
+[maya] thinking: 6767 of max 257560 tokens, 33.9 tok/s, 202 s
+[maya] thinking: 6832 of max 257560 tokens, 34.0 tok/s, 203 s
+[maya] thinking: 6878 of max 257560 tokens, 34.1 tok/s, 204 s
+[maya] thinking: 6914 of max 257560 tokens, 34.1 tok/s, 205 s
+[maya] thinking: 6961 of max 257560 tokens, 34.1 tok/s, 206 s
+[maya] thinking: 6989 of max 257560 tokens, 34.1 tok/s, 207 s
+[maya] thinking: 7026 of max 257560 tokens, 34.1 tok/s, 208 s
+[maya] thinking: 7058 of max 257560 tokens, 34.1 tok/s, 209 s
+[maya] thinking: 7106 of max 257560 tokens, 34.1 tok/s, 210 s
+[maya] thinking: 7146 of max 257560 tokens, 34.2 tok/s, 211 s
+[maya] thinking: 7179 of max 257560 tokens, 34.1 tok/s, 212 s
+[maya] thinking: 7236 of max 257560 tokens, 34.3 tok/s, 213 s
+[maya] thinking: 7266 of max 257560 tokens, 34.2 tok/s, 214 s
+[maya] thinking: 7289 of max 257560 tokens, 34.2 tok/s, 215 s
+[maya] thinking: 7326 of max 257560 tokens, 34.2 tok/s, 216 s
+[maya] thinking: 7380 of max 257560 tokens, 34.3 tok/s, 217 s
+[maya] thinking: 7417 of max 257560 tokens, 34.3 tok/s, 218 s
+[maya] thinking: 7448 of max 257560 tokens, 34.3 tok/s, 219 s
+[maya] thinking: 7474 of max 257560 tokens, 34.2 tok/s, 221 s
+[maya] thinking: 7509 of max 257560 tokens, 34.2 tok/s, 222 s
+[maya] thinking: 7544 of max 257560 tokens, 34.2 tok/s, 223 s
+[maya] thinking: 7570 of max 257560 tokens, 34.2 tok/s, 224 s
+[maya] thinking: 7604 of max 257560 tokens, 34.1 tok/s, 225 s
+[maya] thinking: 7632 of max 257560 tokens, 34.1 tok/s, 226 s
+[maya] thinking: 7663 of max 257560 tokens, 34.1 tok/s, 227 s
+[maya] thinking: 7694 of max 257560 tokens, 34.1 tok/s, 228 s
+[maya] thinking: 7729 of max 257560 tokens, 34.1 tok/s, 229 s
+[maya] thinking: 7764 of max 257560 tokens, 34.1 tok/s, 230 s
+[maya] thinking: 7812 of max 257560 tokens, 34.1 tok/s, 231 s
+[maya] thinking: 7846 of max 257560 tokens, 34.1 tok/s, 232 s
+[maya] thinking: 7872 of max 257560 tokens, 34.1 tok/s, 233 s
+[maya] thinking: 7901 of max 257560 tokens, 34.1 tok/s, 234 s
+[maya] thinking: 7929 of max 257560 tokens, 34.0 tok/s, 235 s
+[maya] thinking: 7963 of max 257560 tokens, 34.0 tok/s, 236 s
+[maya] thinking: 8017 of max 257560 tokens, 34.1 tok/s, 237 s
+[maya] thinking: 8058 of max 257560 tokens, 34.1 tok/s, 238 s
+[maya] thinking: 8094 of max 257560 tokens, 34.1 tok/s, 239 s
+[maya] thinking: 8121 of max 257560 tokens, 34.1 tok/s, 240 s
+[maya] thinking: 8149 of max 257560 tokens, 34.1 tok/s, 241 s
+[maya] thinking: 8179 of max 257560 tokens, 34.0 tok/s, 242 s
+[maya] thinking: 8210 of max 257560 tokens, 34.0 tok/s, 243 s
+[maya] thinking: 8242 of max 257560 tokens, 34.0 tok/s, 244 s
+[maya] thinking: 8268 of max 257560 tokens, 34.0 tok/s, 245 s
+[maya] thinking: 8298 of max 257560 tokens, 33.9 tok/s, 247 s
+[maya] thinking: 8331 of max 257560 tokens, 33.9 tok/s, 248 s
+[maya] thinking: 8361 of max 257560 tokens, 33.9 tok/s, 249 s
+[maya] thinking: 8386 of max 257560 tokens, 33.9 tok/s, 250 s
+[maya] thinking: 8410 of max 257560 tokens, 33.8 tok/s, 251 s
+[maya] thinking: 8460 of max 257560 tokens, 33.9 tok/s, 252 s
+[maya] thinking: 8521 of max 257560 tokens, 34.0 tok/s, 253 s
+[maya] thinking: 8546 of max 257560 tokens, 33.9 tok/s, 254 s
+[maya] thinking: 8584 of max 257560 tokens, 34.0 tok/s, 255 s
+[maya] thinking: 8632 of max 257560 tokens, 34.0 tok/s, 256 s
+[maya] thinking: 8666 of max 257560 tokens, 34.0 tok/s, 257 s
+[maya] thinking: 8708 of max 257560 tokens, 34.0 tok/s, 258 s
+[maya] thinking: 8749 of max 257560 tokens, 34.1 tok/s, 259 s
+[maya] thinking: 8799 of max 257560 tokens, 34.1 tok/s, 260 s
+[maya] thinking: 8869 of max 257560 tokens, 34.2 tok/s, 261 s
+[maya] thinking: 8915 of max 257560 tokens, 34.3 tok/s, 262 s
+[maya] thinking: 8948 of max 257560 tokens, 34.3 tok/s, 263 s
+[maya] thinking: 8976 of max 257560 tokens, 34.2 tok/s, 264 s
+[maya] thinking: 9001 of max 257560 tokens, 34.2 tok/s, 265 s
+[maya] thinking: 9034 of max 257560 tokens, 34.2 tok/s, 266 s
+[maya] thinking: 9065 of max 257560 tokens, 34.2 tok/s, 267 s
+[maya] thinking: 9099 of max 257560 tokens, 34.2 tok/s, 268 s
+[maya] thinking: 9123 of max 257560 tokens, 34.1 tok/s, 269 s
+[maya] thinking: 9147 of max 257560 tokens, 34.1 tok/s, 270 s
+[maya] thinking: 9171 of max 257560 tokens, 34.1 tok/s, 271 s
+[maya] thinking: 9205 of max 257560 tokens, 34.1 tok/s, 272 s
+[maya] thinking: 9234 of max 257560 tokens, 34.0 tok/s, 273 s
+[maya] thinking: 9262 of max 257560 tokens, 34.0 tok/s, 274 s
+[maya] thinking: 9296 of max 257560 tokens, 34.0 tok/s, 275 s
+[maya] thinking: 9325 of max 257560 tokens, 34.0 tok/s, 276 s
+[maya] thinking: 9353 of max 257560 tokens, 34.0 tok/s, 278 s
+[maya] thinking: 9382 of max 257560 tokens, 33.9 tok/s, 279 s
+[maya] thinking: 9408 of max 257560 tokens, 33.9 tok/s, 280 s
+[maya] thinking: 9446 of max 257560 tokens, 33.9 tok/s, 281 s
+[maya] thinking: 9475 of max 257560 tokens, 33.9 tok/s, 282 s
+[maya] thinking: 9508 of max 257560 tokens, 33.9 tok/s, 283 s
+[maya] thinking: 9547 of max 257560 tokens, 33.9 tok/s, 284 s
+[maya] thinking: 9605 of max 257560 tokens, 34.0 tok/s, 285 s
+[maya] thinking: 9668 of max 257560 tokens, 34.1 tok/s, 286 s
+[maya] thinking: 9719 of max 257560 tokens, 34.1 tok/s, 287 s
+[maya] thinking: 9749 of max 257560 tokens, 34.1 tok/s, 288 s
+[maya] thinking: 9784 of max 257560 tokens, 34.1 tok/s, 289 s
+[maya] thinking: 9844 of max 257560 tokens, 34.2 tok/s, 290 s
+[maya] thinking: 9878 of max 257560 tokens, 34.2 tok/s, 291 s
+[maya] thinking: 9917 of max 257560 tokens, 34.2 tok/s, 292 s
+[maya] thinking: 9948 of max 257560 tokens, 34.2 tok/s, 293 s
+[maya] thinking: 9977 of max 257560 tokens, 34.1 tok/s, 294 s
+[maya] thinking: 10005 of max 257560 tokens, 34.1 tok/s, 295 s
+[maya] thinking: 10029 of max 257560 tokens, 34.1 tok/s, 296 s
+[maya] thinking: 10054 of max 257560 tokens, 34.0 tok/s, 297 s
+[maya] thinking: 10080 of max 257560 tokens, 34.0 tok/s, 298 s
+[maya] thinking: 10109 of max 257560 tokens, 34.0 tok/s, 300 s
+[maya] thinking: 10135 of max 257560 tokens, 34.0 tok/s, 301 s
+[maya] thinking: 10177 of max 257560 tokens, 34.0 tok/s, 302 s
+[maya] thinking: 10227 of max 257560 tokens, 34.0 tok/s, 303 s
+[maya] thinking: 10281 of max 257560 tokens, 34.1 tok/s, 304 s
+[maya] thinking: 10322 of max 257560 tokens, 34.1 tok/s, 305 s
+[maya] thinking: 10375 of max 257560 tokens, 34.2 tok/s, 306 s
+[maya] thinking: 10429 of max 257560 tokens, 34.2 tok/s, 307 s
+[maya] thinking: 10476 of max 257560 tokens, 34.3 tok/s, 308 s
+[maya] thinking: 10521 of max 257560 tokens, 34.3 tok/s, 309 s
+[maya] thinking: 10556 of max 257560 tokens, 34.3 tok/s, 310 s
+[maya] thinking: 10596 of max 257560 tokens, 34.3 tok/s, 311 s
+[maya] thinking: 10620 of max 257560 tokens, 34.3 tok/s, 312 s
+[maya] thinking: 10652 of max 257560 tokens, 34.3 tok/s, 313 s
+[maya] thinking: 10703 of max 257560 tokens, 34.3 tok/s, 314 s
+[maya] thinking: 10747 of max 257560 tokens, 34.3 tok/s, 315 s
+[maya] thinking: 10802 of max 257560 tokens, 34.4 tok/s, 316 s
+[maya] thinking: 10851 of max 257560 tokens, 34.4 tok/s, 317 s
+[maya] thinking: 10884 of max 257560 tokens, 34.4 tok/s, 318 s
+[maya] thinking: 10919 of max 257560 tokens, 34.4 tok/s, 319 s
+[maya] thinking: 10947 of max 257560 tokens, 34.4 tok/s, 320 s
+[maya] thinking: 10968 of max 257560 tokens, 34.4 tok/s, 321 s
+[maya] thinking: 11015 of max 257560 tokens, 34.4 tok/s, 322 s
+[maya] thinking: 11084 of max 257560 tokens, 34.5 tok/s, 323 s
+[maya] thinking: 11147 of max 257560 tokens, 34.6 tok/s, 324 s
+[maya] thinking: 11178 of max 257560 tokens, 34.6 tok/s, 325 s
+[maya] thinking: 11220 of max 257560 tokens, 34.6 tok/s, 326 s
+[maya] thinking: 11283 of max 257560 tokens, 34.7 tok/s, 328 s
+[maya] thinking: 11331 of max 257560 tokens, 34.7 tok/s, 329 s
+[maya] thinking: 11374 of max 257560 tokens, 34.7 tok/s, 330 s
+[maya] thinking: 11413 of max 257560 tokens, 34.7 tok/s, 331 s
+[maya] thinking: 11450 of max 257560 tokens, 34.7 tok/s, 332 s
+[maya] thinking: 11481 of max 257560 tokens, 34.7 tok/s, 333 s
+[maya] thinking: 11514 of max 257560 tokens, 34.7 tok/s, 334 s
+[maya] thinking: 11547 of max 257560 tokens, 34.7 tok/s, 335 s
+[maya] thinking: 11586 of max 257560 tokens, 34.7 tok/s, 336 s
+[maya] thinking: 11613 of max 257560 tokens, 34.7 tok/s, 337 s
+[maya] thinking: 11654 of max 257560 tokens, 34.7 tok/s, 338 s
+[maya] thinking: 11711 of max 257560 tokens, 34.8 tok/s, 339 s
+[maya] thinking: 11750 of max 257560 tokens, 34.8 tok/s, 340 s
+[maya] thinking: 11774 of max 257560 tokens, 34.7 tok/s, 341 s
+[maya] thinking: 11807 of max 257560 tokens, 34.7 tok/s, 342 s
+[maya] thinking: 11843 of max 257560 tokens, 34.7 tok/s, 343 s
+[maya] thinking: 11877 of max 257560 tokens, 34.7 tok/s, 344 s
+[maya] thinking: 11916 of max 257560 tokens, 34.7 tok/s, 345 s
+[maya] thinking: 11945 of max 257560 tokens, 34.7 tok/s, 346 s
+[maya] thinking: 11975 of max 257560 tokens, 34.7 tok/s, 347 s
+[maya] thinking: 12002 of max 257560 tokens, 34.7 tok/s, 348 s
+[maya] thinking: 12044 of max 257560 tokens, 34.7 tok/s, 349 s
+[maya] thinking: 12089 of max 257560 tokens, 34.7 tok/s, 350 s
+[maya] thinking: 12128 of max 257560 tokens, 34.7 tok/s, 351 s
+[maya] thinking: 12158 of max 257560 tokens, 34.7 tok/s, 353 s
+[maya] thinking: 12190 of max 257560 tokens, 34.7 tok/s, 354 s
+[maya] thinking: 12223 of max 257560 tokens, 34.7 tok/s, 355 s
+[maya] thinking: 12258 of max 257560 tokens, 34.7 tok/s, 356 s
+[maya] thinking: 12288 of max 257560 tokens, 34.7 tok/s, 357 s
+[maya] thinking: 12321 of max 257560 tokens, 34.6 tok/s, 358 s
+[maya] thinking: 12356 of max 257560 tokens, 34.6 tok/s, 359 s
+[maya] thinking: 12404 of max 257560 tokens, 34.7 tok/s, 360 s
+[maya] thinking: 12431 of max 257560 tokens, 34.7 tok/s, 361 s
+[maya] thinking: 12462 of max 257560 tokens, 34.6 tok/s, 362 s
+[maya] thinking: 12498 of max 257560 tokens, 34.6 tok/s, 363 s
+[maya] thinking: 12546 of max 257560 tokens, 34.7 tok/s, 364 s
+[maya] thinking: 12593 of max 257560 tokens, 34.7 tok/s, 365 s
+[maya] thinking: 12630 of max 257560 tokens, 34.7 tok/s, 366 s
+[maya] thinking: 12702 of max 257560 tokens, 34.8 tok/s, 367 s
+[maya] thinking: 12764 of max 257560 tokens, 34.9 tok/s, 368 s
+[maya] thinking: 12807 of max 257560 tokens, 34.9 tok/s, 369 s
+[maya] thinking: 12842 of max 257560 tokens, 34.9 tok/s, 370 s
+[maya] thinking: 12891 of max 257560 tokens, 34.9 tok/s, 371 s
+[maya] thinking: 12930 of max 257560 tokens, 34.9 tok/s, 372 s
+[maya] thinking: 12988 of max 257560 tokens, 35.0 tok/s, 373 s
+[maya] thinking: 13022 of max 257560 tokens, 35.0 tok/s, 374 s
+[maya] thinking: 13052 of max 257560 tokens, 35.0 tok/s, 375 s
+[maya] thinking: 13084 of max 257560 tokens, 34.9 tok/s, 376 s
+[maya] thinking: 13111 of max 257560 tokens, 34.9 tok/s, 377 s
+[maya] thinking: 13138 of max 257560 tokens, 34.9 tok/s, 378 s
+[maya] thinking: 13167 of max 257560 tokens, 34.9 tok/s, 379 s
+[maya] thinking: 13198 of max 257560 tokens, 34.9 tok/s, 381 s
+[maya] thinking: 13235 of max 257560 tokens, 34.9 tok/s, 382 s
+[maya] thinking: 13282 of max 257560 tokens, 34.9 tok/s, 383 s
+[maya] thinking: 13309 of max 257560 tokens, 34.9 tok/s, 384 s
+[maya] thinking: 13348 of max 257560 tokens, 34.9 tok/s, 385 s
+[maya] thinking: 13385 of max 257560 tokens, 34.9 tok/s, 386 s
+[maya] thinking: 13410 of max 257560 tokens, 34.9 tok/s, 387 s
+[maya] thinking: 13444 of max 257560 tokens, 34.9 tok/s, 388 s
+[maya] thinking: 13483 of max 257560 tokens, 34.9 tok/s, 389 s
+[maya] thinking: 13524 of max 257560 tokens, 34.9 tok/s, 390 s
+[maya] thinking: 13581 of max 257560 tokens, 34.9 tok/s, 391 s
+[maya] thinking: 13631 of max 257560 tokens, 35.0 tok/s, 392 s
+[maya] thinking: 13664 of max 257560 tokens, 35.0 tok/s, 393 s
+[maya] thinking: 13689 of max 257560 tokens, 34.9 tok/s, 394 s
+[maya] thinking: 13713 of max 257560 tokens, 34.9 tok/s, 395 s
+[maya] thinking: 13742 of max 257560 tokens, 34.9 tok/s, 396 s
+[maya] thinking: 13784 of max 257560 tokens, 34.9 tok/s, 397 s
+[maya] thinking: 13833 of max 257560 tokens, 34.9 tok/s, 398 s
+[maya] thinking: 13878 of max 257560 tokens, 34.9 tok/s, 399 s
+[maya] thinking: 13916 of max 257560 tokens, 34.9 tok/s, 400 s
+[maya] thinking: 13957 of max 257560 tokens, 35.0 tok/s, 401 s
+[maya] thinking: 14006 of max 257560 tokens, 35.0 tok/s, 402 s
+[maya] thinking: 14060 of max 257560 tokens, 35.0 tok/s, 403 s
+[maya] thinking: 14085 of max 257560 tokens, 35.0 tok/s, 404 s
+[maya] thinking: 14116 of max 257560 tokens, 35.0 tok/s, 405 s
+[maya] thinking: 14145 of max 257560 tokens, 35.0 tok/s, 407 s
+[maya] thinking: 14173 of max 257560 tokens, 35.0 tok/s, 408 s
+[maya] thinking: 14201 of max 257560 tokens, 34.9 tok/s, 409 s
+[maya] thinking: 14230 of max 257560 tokens, 34.9 tok/s, 410 s
+[maya] thinking: 14274 of max 257560 tokens, 34.9 tok/s, 411 s
+[maya] thinking: 14310 of max 257560 tokens, 34.9 tok/s, 412 s
+[maya] thinking: 14352 of max 257560 tokens, 34.9 tok/s, 413 s
+[maya] thinking: 14380 of max 257560 tokens, 34.9 tok/s, 414 s
+[maya] thinking: 14418 of max 257560 tokens, 34.9 tok/s, 415 s
+[maya] thinking: 14450 of max 257560 tokens, 34.9 tok/s, 416 s
+[maya] answering: 14478 of max 257560 tokens, 34.9 tok/s, 417 s
+[maya] answering: 14500 of max 257560 tokens, 34.8 tok/s, 418 s
+[maya] answering: 14526 of max 257560 tokens, 34.8 tok/s, 419 s
+[maya] answering: 14550 of max 257560 tokens, 34.7 tok/s, 421 s
+[maya] answering: 14680 of max 257560 tokens, 34.9 tok/s, 422 s
+[maya] answering: 14752 of max 257560 tokens, 35.0 tok/s, 423 s
+[maya] answering: 14801 of max 257560 tokens, 35.1 tok/s, 424 s
+[maya] answering: 14878 of max 257560 tokens, 35.1 tok/s, 425 s
+[maya] answering: 14939 of max 257560 tokens, 35.2 tok/s, 426 s
+[maya] answering: 15003 of max 257560 tokens, 35.3 tok/s, 427 s
+[maya] answering: 15059 of max 257560 tokens, 35.3 tok/s, 428 s
+[maya] answering: 15107 of max 257560 tokens, 35.3 tok/s, 429 s
+[maya] answering: 15168 of max 257560 tokens, 35.4 tok/s, 431 s
+[maya] answering: 15223 of max 257560 tokens, 35.4 tok/s, 432 s
+[maya] answering: 15281 of max 257560 tokens, 35.5 tok/s, 433 s
+[maya] answering: 15324 of max 257560 tokens, 35.5 tok/s, 434 s
+[maya] answering: 15383 of max 257560 tokens, 35.5 tok/s, 435 s
+[maya] answering: 15439 of max 257560 tokens, 35.6 tok/s, 436 s
+[maya] answering: 15497 of max 257560 tokens, 35.6 tok/s, 437 s
+[maya] answering: 15550 of max 257560 tokens, 35.7 tok/s, 438 s
+[maya] answering: 15607 of max 257560 tokens, 35.7 tok/s, 439 s
+[maya] answering: 15644 of max 257560 tokens, 35.7 tok/s, 440 s
+[maya] answering: 15695 of max 257560 tokens, 35.7 tok/s, 441 s
+[maya] answering: 15759 of max 257560 tokens, 35.8 tok/s, 442 s
+[maya] answering: 15808 of max 257560 tokens, 35.8 tok/s, 443 s
+[maya] answering: 15863 of max 257560 tokens, 35.9 tok/s, 444 s
+[maya] answering: 15913 of max 257560 tokens, 35.9 tok/s, 445 s
+[maya] answering: 15978 of max 257560 tokens, 36.0 tok/s, 446 s
+[maya] answering: 16031 of max 257560 tokens, 36.0 tok/s, 448 s
+[maya] answering: 16084 of max 257560 tokens, 36.0 tok/s, 449 s
+[maya] answering: 16177 of max 257560 tokens, 36.1 tok/s, 450 s
+[maya] answering: 16224 of max 257560 tokens, 36.2 tok/s, 451 s
+[maya] answering: 16290 of max 257560 tokens, 36.2 tok/s, 452 s
+[maya] answering: 16361 of max 257560 tokens, 36.3 tok/s, 453 s
+[maya] answering: 16393 of max 257560 tokens, 36.3 tok/s, 454 s
+[maya] answering: 16451 of max 257560 tokens, 36.3 tok/s, 455 s
+[maya] answering: 16509 of max 257560 tokens, 36.4 tok/s, 456 s
+[maya] answering: 16584 of max 257560 tokens, 36.5 tok/s, 457 s
+[maya] answering: 16619 of max 257560 tokens, 36.5 tok/s, 458 s
+[maya] answering: 16658 of max 257560 tokens, 36.5 tok/s, 459 s
+[maya] answering: 16720 of max 257560 tokens, 36.5 tok/s, 460 s
+[maya] answering: 16783 of max 257560 tokens, 36.6 tok/s, 461 s
+[maya] answering: 16859 of max 257560 tokens, 36.7 tok/s, 462 s
+[maya] answering: 16912 of max 257560 tokens, 36.7 tok/s, 463 s
+[maya] answering: 16971 of max 257560 tokens, 36.7 tok/s, 464 s
+[maya] answering: 17027 of max 257560 tokens, 36.8 tok/s, 465 s
+[maya] answering: 17095 of max 257560 tokens, 36.8 tok/s, 466 s
+[maya] answering: 17174 of max 257560 tokens, 36.9 tok/s, 467 s
+[maya] answering: 17239 of max 257560 tokens, 37.0 tok/s, 469 s
+[maya] answering: 17293 of max 257560 tokens, 37.0 tok/s, 470 s
+[maya] answering: 17340 of max 257560 tokens, 37.0 tok/s, 471 s
+[maya] answering: 17384 of max 257560 tokens, 37.0 tok/s, 472 s
+[maya] answering: 17440 of max 257560 tokens, 37.1 tok/s, 473 s
+[maya] answering: 17508 of max 257560 tokens, 37.1 tok/s, 474 s
+[maya] answering: 17574 of max 257560 tokens, 37.2 tok/s, 475 s
+[maya] answering: 17623 of max 257560 tokens, 37.2 tok/s, 476 s
+[maya] answering: 17666 of max 257560 tokens, 37.2 tok/s, 477 s
+[maya] answering: 17705 of max 257560 tokens, 37.2 tok/s, 478 s
+[maya] answering: 17760 of max 257560 tokens, 37.2 tok/s, 479 s
+[maya] answering: 17811 of max 257560 tokens, 37.3 tok/s, 480 s
+[maya] answering: 17883 of max 257560 tokens, 37.3 tok/s, 481 s
+[maya] answering: 17931 of max 257560 tokens, 37.3 tok/s, 482 s
+[maya] answering: 18011 of max 257560 tokens, 37.4 tok/s, 483 s
+[maya] answering: 18074 of max 257560 tokens, 37.5 tok/s, 484 s
+[maya] answering: 18126 of max 257560 tokens, 37.5 tok/s, 485 s
+[maya] answering: 18187 of max 257560 tokens, 37.5 tok/s, 486 s
+[maya] answering: 18262 of max 257560 tokens, 37.6 tok/s, 488 s
+[maya] answering: 18322 of max 257560 tokens, 37.7 tok/s, 489 s
+[maya] answering: 18375 of max 257560 tokens, 37.7 tok/s, 490 s
+[maya] answering: 18459 of max 257560 tokens, 37.8 tok/s, 491 s
+[maya] answering: 18528 of max 257560 tokens, 37.8 tok/s, 492 s
+[maya] answering: 18600 of max 257560 tokens, 37.9 tok/s, 493 s
+[maya] answering: 18681 of max 257560 tokens, 38.0 tok/s, 494 s
+[maya] answering: 18738 of max 257560 tokens, 38.0 tok/s, 495 s
+[maya] answering: 18800 of max 257560 tokens, 38.1 tok/s, 496 s
+[maya] answering: 18866 of max 257560 tokens, 38.1 tok/s, 497 s
+[maya] answering: 18923 of max 257560 tokens, 38.1 tok/s, 498 s
+[maya] answering: 18991 of max 257560 tokens, 38.2 tok/s, 499 s
+[maya] answering: 19065 of max 257560 tokens, 38.3 tok/s, 500 s
+[maya] answering: 19117 of max 257560 tokens, 38.3 tok/s, 501 s
+[maya] answering: 19181 of max 257560 tokens, 38.3 tok/s, 502 s
+[maya] answering: 19253 of max 257560 tokens, 38.4 tok/s, 503 s
+[maya] answering: 19328 of max 257560 tokens, 38.5 tok/s, 504 s
+[maya] answering: 19401 of max 257560 tokens, 38.5 tok/s, 506 s
+[maya] answering: 19474 of max 257560 tokens, 38.6 tok/s, 507 s
+[maya] answering: 19536 of max 257560 tokens, 38.6 tok/s, 508 s
+[maya] answering: 19599 of max 257560 tokens, 38.7 tok/s, 509 s
+[maya] answering: 19665 of max 257560 tokens, 38.7 tok/s, 510 s
+[maya] answering: 19720 of max 257560 tokens, 38.8 tok/s, 511 s
+[maya] answering: 19784 of max 257560 tokens, 38.8 tok/s, 512 s
+[maya] answering: 19831 of max 257560 tokens, 38.8 tok/s, 513 s
+[maya] answering: 19869 of max 257560 tokens, 38.8 tok/s, 514 s
+[maya] answering: 19920 of max 257560 tokens, 38.8 tok/s, 515 s
+[maya] answering: 19983 of max 257560 tokens, 38.9 tok/s, 516 s
+[maya] answering: 20031 of max 257560 tokens, 38.9 tok/s, 517 s
+[maya] answering: 20095 of max 257560 tokens, 38.9 tok/s, 518 s
+[maya] answering: 20153 of max 257560 tokens, 39.0 tok/s, 519 s
+[maya] answering: 20219 of max 257560 tokens, 39.0 tok/s, 520 s
+[maya] answering: 20266 of max 257560 tokens, 39.0 tok/s, 521 s
+[maya] answering: 20319 of max 257560 tokens, 39.0 tok/s, 523 s
+[maya] answering: 20377 of max 257560 tokens, 39.1 tok/s, 524 s
+[maya] answering: 20423 of max 257560 tokens, 39.1 tok/s, 525 s
+[maya] answering: 20478 of max 257560 tokens, 39.1 tok/s, 526 s
+[maya] answering: 20540 of max 257560 tokens, 39.2 tok/s, 527 s
+[maya] answering: 20604 of max 257560 tokens, 39.2 tok/s, 528 s
+[maya] answering: 20666 of max 257560 tokens, 39.2 tok/s, 529 s
+[maya] answering: 20707 of max 257560 tokens, 39.2 tok/s, 530 s
+[maya] answering: 20803 of max 257560 tokens, 39.3 tok/s, 531 s
+[maya] answering: 20863 of max 257560 tokens, 39.4 tok/s, 532 s
+[maya] answering: 20932 of max 257560 tokens, 39.4 tok/s, 533 s
+[maya] answering: 21003 of max 257560 tokens, 39.5 tok/s, 534 s
+[maya] answering: 21071 of max 257560 tokens, 39.5 tok/s, 535 s
+[maya] answering: 21123 of max 257560 tokens, 39.5 tok/s, 536 s
+[maya] answering: 21167 of max 257560 tokens, 39.6 tok/s, 537 s
+[maya] answering: 21233 of max 257560 tokens, 39.6 tok/s, 538 s
+[maya] answering: 21300 of max 257560 tokens, 39.6 tok/s, 539 s
+[maya] answering: 21340 of max 257560 tokens, 39.6 tok/s, 540 s
+[maya] answering: 21408 of max 257560 tokens, 39.7 tok/s, 542 s
+[maya] answering: 21463 of max 257560 tokens, 39.7 tok/s, 543 s
+[maya] answering: 21517 of max 257560 tokens, 39.7 tok/s, 544 s
+[maya] answering: 21601 of max 257560 tokens, 39.8 tok/s, 545 s
+[maya] answering: 21663 of max 257560 tokens, 39.8 tok/s, 546 s
+[maya] answering: 21722 of max 257560 tokens, 39.9 tok/s, 547 s
+[maya] answering: 21787 of max 257560 tokens, 39.9 tok/s, 548 s
+[maya] answering: 21858 of max 257560 tokens, 40.0 tok/s, 549 s
+[maya] answering: 21920 of max 257560 tokens, 40.0 tok/s, 550 s
+[maya] answering: 21965 of max 257560 tokens, 40.0 tok/s, 551 s
+[maya] answering: 22010 of max 257560 tokens, 40.0 tok/s, 552 s
+[maya] answering: 22057 of max 257560 tokens, 40.0 tok/s, 553 s
+[maya] answering: 22110 of max 257560 tokens, 40.1 tok/s, 554 s
+[maya] answering: 22172 of max 257560 tokens, 40.1 tok/s, 555 s
+[maya] answering: 22229 of max 257560 tokens, 40.1 tok/s, 556 s
+[maya] answering: 22280 of max 257560 tokens, 40.1 tok/s, 557 s
+[maya] answering: 22340 of max 257560 tokens, 40.2 tok/s, 558 s
+[maya] answering: 22384 of max 257560 tokens, 40.2 tok/s, 559 s
+[maya] answering: 22409 of max 257560 tokens, 40.2 tok/s, 560 s
+[maya] answering: 22449 of max 257560 tokens, 40.2 tok/s, 561 s
+[maya] answering: 22489 of max 257560 tokens, 40.1 tok/s, 562 s
+[maya] answering: 22532 of max 257560 tokens, 40.2 tok/s, 563 s
+[maya] answering: 22571 of max 257560 tokens, 40.1 tok/s, 564 s
+[maya] answering: 22600 of max 257560 tokens, 40.1 tok/s, 565 s
+[maya] answering: 22625 of max 257560 tokens, 40.1 tok/s, 566 s
+[maya] answering: 22654 of max 257560 tokens, 40.1 tok/s, 567 s
+[maya] answering: 22686 of max 257560 tokens, 40.1 tok/s, 568 s
+[maya] answering: 22711 of max 257560 tokens, 40.0 tok/s, 569 s
+[maya] answering: 22735 of max 257560 tokens, 40.0 tok/s, 570 s
+[maya] answering: 22759 of max 257560 tokens, 40.0 tok/s, 571 s
+[maya] answering: 22784 of max 257560 tokens, 39.9 tok/s, 573 s
+[maya] done: 22791 tokens in 573 s (39.9 tok/s) (stop, cancel=False), expert cache 100.0% hit
+[maya] model unloaded (GPU memory and the RAM tier given back); the next request loads it again

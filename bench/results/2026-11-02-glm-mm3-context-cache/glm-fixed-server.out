@@ -1,0 +1,44 @@
+[maya] this server's lines go to E:\project-maya\bench\results\2026-11-02-glm-mm3-context-cache\glm-fixed-native.log too
+[maya] sampling defaults from the config: temperature=1.0, top_p=0.95
+[maya] images: measuring the vision encoder on this GPU (4096 image tokens) ...
+[maya] images: the vision encoder needs 5.01 GB on this GPU at up to 4096 image tokens
+loading the model (the first start takes a minute or two) ...
+[maya] starting the engine: reading the model's weights ...
+[maya] still starting (20 s) - please wait ...
+[maya] still starting (40 s) - please wait ...
+[maya] still starting (61 s) - please wait ...
+[maya] still starting (81 s) - please wait ...
+[maya] still starting (101 s) - please wait ...
+[maya] still starting (121 s) - please wait ...
+[maya] still starting (142 s) - please wait ...
+[maya] still starting (162 s) - please wait ...
+[maya] sessions: slots parked in RAM (4.29 GB max) - nothing is written to disk, the states die with the run
+[maya] images: the vision encoder starts when a picture arrives, in 7.13 GB the model lends it
+[maya] thinking level when a request names none: high
+[maya] thinking budget: 32768 tokens (then the answer)
+[maya] model management: on (/models/load, /models/unload, /models/sse)
+ready: http://127.0.0.1:8081/v1  (OpenAI: /v1/chat/completions, /v1/responses, Anthropic: /v1/messages, context 262144 tokens, images on)
+       open http://127.0.0.1:8081/ in a browser to chat; close this window to stop the model
+[maya] reading the prompt: 40,002 tokens, 10 s so far
+[maya] reading the prompt: 40,001 of 40,002 tokens, 16 s so far
+[maya] done: 23 tokens in 17 s (42.9 tok/s) (stop, cancel=False), expert cache 90.9% hit
+[maya] sessions: saved a 40001-token conversation (0.66 GB in RAM in 0.1 s); 1 kept, 0.66 GB
+[maya] reading the prompt: 48 of 65 tokens, 1 s so far
+[maya] done: 32 tokens in 2 s (62.8 tok/s) (length, cancel=False), expert cache 97.9% hit
+[maya] done: 32 tokens in 1 s (63.7 tok/s) (length, cancel=False), expert cache 98.3% hit
+[maya] done: 32 tokens in 1 s (65.7 tok/s) (length, cancel=False), expert cache 98.9% hit
+[maya] done: 32 tokens in 0 s (66.8 tok/s) (length, cancel=False), expert cache 99.3% hit
+[maya] sessions: took back a 40001-token conversation from RAM (0.0 s); 1 new tokens to read
+[maya] done: 23 tokens in 1 s (53.9 tok/s) (stop, cancel=False), expert cache 94.4% hit
+[maya] sessions: saved a 40001-token conversation (0.66 GB in RAM in 0.2 s); 1 kept, 0.66 GB
+[maya] reading the prompt: 48 of 51 tokens, 1 s so far
+[maya] done: 7 tokens in 1 s (68.6 tok/s) (stop, cancel=False), expert cache 96.0% hit
+[maya] reading the prompt: 40,002 tokens, 10 s so far
+[maya] reading the prompt: 40,001 of 40,002 tokens, 16 s so far
+[maya] done: 23 tokens in 16 s (53.9 tok/s) (stop, cancel=False), expert cache 93.3% hit
+[maya] sessions: saved a 40001-token conversation (0.66 GB in RAM in 0.1 s); 2 kept, 1.32 GB
+[maya] sessions: took back a 40001-token conversation from RAM (0.0 s); 1 new tokens to read
+[maya] done: 23 tokens in 1 s (54.8 tok/s) (stop, cancel=False), expert cache 94.4% hit
+[maya] answering: 11 of max 64 tokens, 52.0 tok/s, 1 s
+[maya] done: 23 tokens in 1 s (53.8 tok/s) (stop, cancel=False), expert cache 94.4% hit
+[maya] model unloaded (GPU memory and the RAM tier given back); the next request loads it again

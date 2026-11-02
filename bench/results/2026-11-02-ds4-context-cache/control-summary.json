@@ -1,0 +1,14 @@
+{
+  "label": "control",
+  "keep": 0,
+  "context": 262144,
+  "dspark": true,
+  "input_tokens": 111243,
+  "reused": 17022,
+  "read": 94221,
+  "prompt_ms": 32725.9,
+  "wall_s": 33.80800771713257,
+  "codes_ok": true,
+  "drafts_total": 61,
+  "fixture_sha256": "017fefbd4154a7ad0b145ca171055b43761fe9efff90432dee477edf4cb5189f"
+}

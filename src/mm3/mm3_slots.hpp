@@ -1,11 +1,61 @@
-// src/mm3/mm3_slots.hpp - which idle conversation (--parallel) a new request takes: its cache is kept up to the
-// request's shared start and the rest dropped.
+// src/mm3/mm3_slots.hpp - exact serial prefix parking and idle conversation selection under --parallel.
 #pragma once
 
+#include <algorithm>
+#include <cstdint>
 #include <cstddef>
 #include <vector>
 
 namespace mm3 {
+
+struct PictureKey { long long start; uint64_t hash; };
+inline bool same_pictures(const std::vector<PictureKey>& a, const std::vector<PictureKey>& b, size_t prefix) {
+    const auto included = [&](const std::vector<PictureKey>& x, const std::vector<PictureKey>& y) {
+        for (const auto& p : x) if (p.start < (long long) prefix &&
+            std::none_of(y.begin(), y.end(), [&](const PictureKey& q) { return p.start == q.start && p.hash == q.hash; }))
+            return false;
+        return true;
+    };
+    return included(a, b) && included(b, a);
+}
+// A parked state is reused only when its entire token prefix and pictures match.
+// A partial token match cannot reconstruct DSpark's older sliding-window context.
+inline bool exact_prefix(const std::vector<int>& saved, const std::vector<PictureKey>& pictures,
+                         const std::vector<int>& prompt, const std::vector<PictureKey>& incoming) {
+    return !saved.empty() && saved.size() < prompt.size() &&
+           std::equal(saved.begin(), saved.end(), prompt.begin()) && same_pictures(pictures, incoming, saved.size());
+}
+struct PrefixSlot {
+    std::vector<int> tokens;
+    std::vector<PictureKey> pictures;
+    std::vector<uint8_t> data;
+    uint64_t used = 0;
+};
+class PrefixSlots {
+public:
+    size_t limit = 4, cap = (size_t) 12 << 30;
+    uint64_t clock = 0;
+    std::vector<PrefixSlot> slots;
+    size_t bytes() const { size_t n = 0; for (const auto& s : slots) n += s.data.size(); return n; }
+    int find(const std::vector<int>& prompt, const std::vector<PictureKey>& pictures, size_t better_than = 0) const {
+        int best = -1;
+        for (int i = 0; i < (int) slots.size(); ++i)
+            if (slots[i].tokens.size() > better_than && exact_prefix(slots[i].tokens, slots[i].pictures, prompt, pictures)) {
+                best = i; better_than = slots[i].tokens.size();
+            }
+        return best;
+    }
+    void drop(size_t i) { slots.erase(slots.begin() + i); }
+    bool reserve(size_t n) {
+        if (!limit || n > cap) return false;
+        while (!slots.empty() && (slots.size() >= limit || bytes() > cap - n)) {
+            size_t lru = 0;
+            for (size_t i = 1; i < slots.size(); ++i) if (slots[i].used < slots[lru].used) lru = i;
+            drop(lru);
+        }
+        return true;
+    }
+};
 
 /// One conversation as the choice sees it: busy, the request's shared start with its cache (`from`, the tokens not
 /// read again), the tokens in its cache (`size`), and when it last ran (`used`, a clock).

@@ -1,0 +1,25 @@
+{
+ "since": 1793616539.962614,
+ "models": {
+  "config-verified.json": {
+   "since": 1793616539.962685,
+   "bands": {
+    "base": {
+     "input": 350803,
+     "cached": 951122,
+     "output": 24856,
+     "requests": 27
+    },
+    "peak": {
+     "input": 0,
+     "cached": 0,
+     "output": 0,
+     "requests": 0
+    }
+   },
+   "model": "minimax-m3.1-flash",
+   "quant": "Maya-S"
+  }
+ },
+ "prices": {}
+}

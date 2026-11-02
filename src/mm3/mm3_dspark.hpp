@@ -70,8 +70,13 @@ public:
                          std::vector<std::vector<std::pair<int, float>>>& q, std::string& err);
     /// Device bytes the draft holds.
     size_t bytes() const;
+    // Exact proposal context (small BF16 rings), kept with a parked target prefix.
+    size_t cache_bytes() const;
+    bool cache_save(uint8_t* dst, size_t size, std::string& err);
+    bool cache_load(const uint8_t* src, size_t size, std::string& err);
 
 private:
+    bool cache_copy(uint8_t* dst, const uint8_t* src, size_t size, std::string& err);
     struct Impl;
     Impl* p;
 };

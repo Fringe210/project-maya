@@ -1,0 +1,18 @@
+{
+  "family": "glm",
+  "context": 262144,
+  "input": 40002,
+  "reused": 40001,
+  "read": 1,
+  "prompt_ms": 19.6,
+  "wall_s": 0.5317084789276123,
+  "same_answer": true,
+  "codes_ok": true,
+  "dspark": null,
+  "fixture_sha256": "d17caf4ccb69d1b97c445088c0a87a329367f3eaf8c2f5fd6a22f6b2fb4e7ea6",
+  "changed_middle_first_difference": 21509,
+  "changed_middle_reuse": 0,
+  "original_branch_reuse": 40001,
+  "continuation_reuse": 40001,
+  "drafts": 0
+}

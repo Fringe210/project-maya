@@ -1,0 +1,13 @@
+{
+  "family": "minimax",
+  "context": 131072,
+  "input": 40000,
+  "reused": 210,
+  "read": 39790,
+  "prompt_ms": 39158.8,
+  "wall_s": 39.679864168167114,
+  "same_answer": true,
+  "codes_ok": true,
+  "dspark": 1,
+  "fixture_sha256": "24445877c43889eb3f241f7f21ffab2a46f6ae3dfd99177dd1c2a0ecfbfdaab8"
+}

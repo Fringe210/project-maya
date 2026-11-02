@@ -11,6 +11,9 @@
 #include <cuda_runtime.h>
 
 #include <chrono>
+#include <cstdlib>
+#include <limits>
+#include <new>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -41,7 +44,12 @@ struct mm3h {
     int n_embd = 0, n_ff = 0;
     uint8_t* arena = nullptr;
     int slots = 0;
-    size_t stride = 0;
+    size_t stride = 0, arena_bytes = 0, payload_bytes = 0;
+    bool packed = false;
+    std::vector<size_t> offset, capacity, uploaded;
+    std::vector<int> slot_layer;
+    std::vector<size_t> layer_bytes;
+    std::vector<uint8_t> verify;
     std::vector<x3::ExpertLayout> lay;
     std::vector<char> have_lay;
     std::vector<float*> pin_x;
@@ -158,12 +166,15 @@ int mm3h_open(int device, int n_embd, int n_ff, mm3h** out, char* err, size_t ca
 int mm3h_layout(mm3h* h, int layer, const void* bytes, size_t nbytes, size_t stride, char* err, size_t cap) {
     if (!h || !bytes || layer < 0 || stride == 0) return fail(err, cap, "helper: bad layout");
     if (h->pending) return fail(err, cap, "helper: wait for the pending round first");
+    if (h->arena) return fail(err, cap, "helper: layout is immutable after reserve");
     if (nbytes != sizeof(x3::ExpertLayout))
         return fail(err, cap, "helper: the layout's size differs from this build's ExpertLayout");
     if ((int) h->lay.size() <= layer) {
         h->lay.resize((size_t) layer + 1);
         h->have_lay.resize((size_t) layer + 1, 0);
+        h->layer_bytes.resize((size_t) layer + 1, 0);
     }
+    h->layer_bytes[(size_t) layer] = stride;
     std::memcpy(&h->lay[(size_t) layer], bytes, sizeof(x3::ExpertLayout));
     h->have_lay[(size_t) layer] = 1;
     if (h->stride == 0) h->stride = stride;
@@ -174,25 +185,89 @@ int mm3h_reserve(mm3h* h, int slots, size_t stride, char* err, size_t cap) {
     if (!h || slots <= 0 || stride == 0) return fail(err, cap, "helper: bad reserve");
     if (h->pending) return fail(err, cap, "helper: wait for the pending round first");
     if (h->arena) return fail(err, cap, "helper: already reserved");
+    if ((size_t) slots > std::numeric_limits<size_t>::max() / stride)
+        return fail(err, cap, "helper: arena size overflow");
+    try {
+        h->offset.resize((size_t) slots); h->capacity.assign((size_t) slots, stride);
+        h->uploaded.assign((size_t) slots, 0); h->slot_layer.assign((size_t) slots, -1);
+    } catch (const std::bad_alloc&) { return fail(err, cap, "helper: slot table allocation failed"); }
+    for (int i = 0; i < slots; ++i) h->offset[(size_t) i] = (size_t) i * stride;
     if (!ck(cudaSetDevice(h->dev), "helper: cudaSetDevice", err, cap) ||
         !ck(cudaMalloc((void**) &h->arena, (size_t) slots * stride), "helper: expert arena", err, cap))
         return 1;
+    h->arena_bytes = (size_t) slots * stride;
     h->slots = slots;
     h->stride = stride;
     return 0;
+}
+
+int mm3h_reserve_packed(mm3h* h, int slots, const mm3h_slot* desc, char* err, size_t cap) {
+    if (!h || slots <= 0 || !desc) return fail(err, cap, "helper: bad packed reserve");
+    if (h->pending || h->arena) return fail(err, cap, "helper: already reserved or pending");
+    size_t total = 0;
+    // Validate all descriptors and overflow before allocation or modifying the helper.
+    for (int i = 0; i < slots; ++i) {
+        const auto& d = desc[i];
+        if (d.reserved || !d.bytes || d.layer < 0 || d.layer >= (int) h->have_lay.size() ||
+            !h->have_lay[(size_t) d.layer] || d.bytes != h->layer_bytes[(size_t) d.layer])
+            return fail(err, cap, "helper: packed slot layout mismatch");
+        if (d.bytes > std::numeric_limits<size_t>::max() - 255)
+            return fail(err, cap, "helper: packed slot size overflow");
+        const size_t n = ((size_t) d.bytes + 255) & ~(size_t) 255;
+        if (n > std::numeric_limits<size_t>::max() - total)
+            return fail(err, cap, "helper: packed arena size overflow");
+        total += n;
+    }
+    try {
+        h->offset.resize((size_t) slots); h->capacity.resize((size_t) slots);
+        h->slot_layer.resize((size_t) slots); h->uploaded.assign((size_t) slots, 0);
+    } catch (const std::bad_alloc&) { return fail(err, cap, "helper: slot table allocation failed"); }
+    size_t off = 0;
+    for (int i = 0; i < slots; ++i) {
+        h->offset[(size_t) i] = off; h->capacity[(size_t) i] = (size_t) desc[i].bytes;
+        h->slot_layer[(size_t) i] = desc[i].layer;
+        off += ((size_t) desc[i].bytes + 255) & ~(size_t) 255;
+    }
+    if (!ck(cudaSetDevice(h->dev), "helper: cudaSetDevice", err, cap) ||
+        !ck(cudaMalloc((void**) &h->arena, total), "helper: compact arena", err, cap)) return 1;
+    h->slots = slots; h->arena_bytes = total; h->packed = true;
+    return 0;
+}
+
+void mm3h_get_memory(mm3h* h, mm3h_memory* out) {
+    if (!out) return;
+    *out = {};
+    if (!h) return;
+    out->allocated_bytes = h->arena_bytes; out->payload_bytes = h->payload_bytes;
+    out->padding_bytes = h->arena_bytes - h->payload_bytes;
+    out->slots = h->slots; out->packed = h->packed;
 }
 
 int mm3h_upload(mm3h* h, int slot, int layer, const void* blob, size_t bytes, char* err, size_t cap) {
     if (!h || !h->arena || !blob) return fail(err, cap, "helper: upload before reserve");
     if (h->pending) return fail(err, cap, "helper: wait for the pending round first");
     if (slot < 0 || slot >= h->slots) return fail(err, cap, "helper: slot out of range");
-    if (bytes > h->stride) return fail(err, cap, "helper: the blob is larger than the arena's stride");
+    if (!bytes || bytes > h->capacity[(size_t) slot]) return fail(err, cap, "helper: blob exceeds slot capacity");
+    if (h->packed && (layer != h->slot_layer[(size_t) slot] || bytes != h->capacity[(size_t) slot]))
+        return fail(err, cap, "helper: packed upload layer or size mismatch");
     if (layer < 0 || layer >= (int) h->have_lay.size() || !h->have_lay[(size_t) layer])
         return fail(err, cap, "helper: upload for a layer with no layout");
     if (!ck(cudaSetDevice(h->dev), "helper: cudaSetDevice", err, cap) ||
-        !ck(cudaMemcpy(h->arena + (size_t) slot * h->stride, blob, bytes, cudaMemcpyHostToDevice), "helper: upload",
+        !ck(cudaMemcpy(h->arena + h->offset[(size_t) slot], blob, bytes, cudaMemcpyHostToDevice), "helper: upload",
             err, cap))
         return 1;
+    const char* verify = std::getenv("MAYA_MM3_HELPER_CHECK");
+    if (!verify) verify = std::getenv("MM3_HELPER_CHECK");
+    if (verify && std::atoi(verify) > 0) {
+        try { h->verify.resize(bytes); }
+        catch (const std::bad_alloc&) { return fail(err, cap, "helper: upload check allocation failed"); }
+        if (!ck(cudaMemcpy(h->verify.data(), h->arena + h->offset[(size_t) slot], bytes, cudaMemcpyDeviceToHost),
+                "helper: upload readback", err, cap) || std::memcmp(h->verify.data(), blob, bytes))
+            return fail(err, cap, "helper: uploaded expert byte mismatch");
+    }
+    h->payload_bytes -= h->uploaded[(size_t) slot];
+    h->uploaded[(size_t) slot] = bytes;
+    h->payload_bytes += bytes;
     ++h->st.uploads;
     return 0;
 }
@@ -216,8 +291,13 @@ int mm3h_submit(mm3h* h, const mm3h_layer* layers, int n, char* err, size_t cap)
         if (!L.x || !L.slot || !L.w || !L.out) return fail(err, cap, "helper: null round buffer");
         if (seen[(size_t) L.layer]) return fail(err, cap, "helper: duplicate layer in a round");
         seen[(size_t) L.layer] = 1;
-        for (int i = 0; i < L.n_tok * L.k; ++i)
-            if (L.slot[i] >= h->slots) return fail(err, cap, "helper: slot out of range in a round");
+        for (int i = 0; i < L.n_tok * L.k; ++i) {
+            const int slot = L.slot[i];
+            if (slot >= h->slots) return fail(err, cap, "helper: slot out of range in a round");
+            if (slot >= 0 && (!h->uploaded[(size_t) slot] ||
+                (h->packed && h->slot_layer[(size_t) slot] != L.layer)))
+                return fail(err, cap, "helper: uninitialized slot or wrong layer in a round");
+        }
         if (L.n_tok > max_tok) max_tok = L.n_tok;
     }
     if (!ensure_tok(h, max_tok, err, cap)) return 1;
@@ -254,7 +334,7 @@ int mm3h_submit(mm3h* h, const mm3h_layer* layers, int n, char* err, size_t cap)
             for (int i = 0; i < K; ++i) {
                 const int sl = L.slot[(size_t) t * K + i];
                 if (sl < 0) continue;
-                pp[(size_t) t * 8 + i] = (unsigned long long) (h->arena + (size_t) sl * h->stride);
+                pp[(size_t) t * 8 + i] = (unsigned long long) (h->arena + h->offset[(size_t) sl]);
                 pw[(size_t) t * 8 + i] = L.w[(size_t) t * K + i];
                 ++experts;
                 ++picks;
@@ -296,7 +376,7 @@ int mm3h_submit(mm3h* h, const mm3h_layer* layers, int n, char* err, size_t cap)
             for (int i = 0; i < K; ++i) {
                 const int sl = L.slot[(size_t) t * K + i];
                 if (sl < 0) continue;
-                const auto addr = (unsigned long long) (h->arena + (size_t) sl * h->stride);
+                const auto addr = (unsigned long long) (h->arena + h->offset[(size_t) sl]);
                 bool seen = false;
                 for (int g = 0; g < ngrp; ++g) seen = seen || gp[g] == addr;
                 if (seen) continue;

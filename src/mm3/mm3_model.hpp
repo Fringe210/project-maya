@@ -87,7 +87,8 @@ struct Stats {
     long cpu_experts = 0;         // routed experts the CPU lane computed
     int cpu_threads = 0;          // the CPU lane's threads (0: no CPU lane)
     long helper_experts = 0;      // routed experts the helper computed (Options::helper)
-    uint64_t helper_allocated_bytes = 0;
+    uint64_t helper_allocated_bytes = 0, helper_payload_bytes = 0, helper_padding_bytes = 0;
+    bool helper_packed = false;
     long helper_slots = 0;        // experts uploaded to the helper's card
     long prefill_parity_layers = 0;   // explicit staging validation: serial vs overlapped routed outputs
     double prefill_parity_max_abs = 0;
@@ -178,6 +179,11 @@ public:
     /// Before reusing a request's cached prefix, restore its evicted ring rows
     /// from the host KV cache. mode -1: default, 0: diagnostic bypass, 1: restore.
     bool restore_prefix(int prefix, int mode, std::string& err);
+    // In-process exact conversation snapshots. No weights, token splice or requantization.
+    // Supported by the single-sequence layer-split engine; 0 bytes otherwise.
+    size_t prefix_cache_bytes(int prefix) const;
+    bool prefix_cache_save(int prefix, std::vector<uint8_t>& data, std::string& err);
+    bool prefix_cache_load(int prefix, const std::vector<uint8_t>& data, std::string& err);
     void set_prefill_gemm(int backend);
     int prefill_gemm() const;
     bool lt_available() const;
@@ -211,6 +217,7 @@ public:
     void set_images(std::vector<Image> images);
 
 private:
+    bool prefix_cache_copy(int prefix, std::vector<uint8_t>* dst, const std::vector<uint8_t>* src, std::string& err);
     struct Impl;
     Impl* p;
     TpEngine* tpe = nullptr;   // (Options::tp > 0: every call goes to it)

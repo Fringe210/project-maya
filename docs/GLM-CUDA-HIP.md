@@ -100,3 +100,6 @@ The Monitor counts each routed expert once: NVIDIA-resident versus AMD-only. Its
 The component test `glm_cross_helper_test` covers 148 real expert pairs with changing input/routing weights, full/partial byte-exact GPU weight readbacks, and six rejected invalid ABI calls. It isolates rare Q8/FP16 rounding ties and compares down projections with common hidden activations. Full-model helper checks sample two experts from every served MoE layer. The segmented Windows RAM verifier uses `RamClass::slot()`.
 
 Raw evidence is in `bench/results/2026-10-31-unified/summary.json`. Full 262K stress prompts and parallel 2/4-stream CUDA+HIP tests were not run; parallelism was explicitly deferred.
+
+
+Exact context reuse across unrelated requests is checked for GLM and MiniMax in [the conversation-cache report](GLM-MINIMAX-CONTEXT-CACHE.md). It documents the distinct cache policies, bounded RAM profiles, byte-level MiniMax validation and 40K real-document results, with the active context limits preserved.

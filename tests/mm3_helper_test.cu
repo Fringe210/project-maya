@@ -297,6 +297,7 @@ int main(int argc, char** argv) {
     if (argc >= 2 && std::string(argv[1]) == "--bench") return bench();
     if (argc >= 2 && std::string(argv[1]) == "--bench-token")
         return bench(true, argc >= 3 ? argv[2] : "auto", argc >= 4 ? std::max(1, std::min(4, std::atoi(argv[3]))) : 1);
+    const bool packed = !(argc >= 2 && std::string(argv[1]) == "--legacy");
     const int D = 512, F = 256, n_exp = 10, K = 4;
     const float lim = 7.0f;
     const int n_lay = (int) (sizeof kTriples / sizeof kTriples[0]);
@@ -312,10 +313,34 @@ int main(int argc, char** argv) {
     if (check(mm3h_open(0, D, F, &h, err, sizeof err), "helper open", err)) return 1;
     rejected(mm3h_wait(h, err, sizeof err), "wait before first submit is rejected");
     for (int li = 0; li < n_lay; ++li)
-        if (check(mm3h_layout(h, li, &lay[(size_t) li].lay, sizeof(x3::ExpertLayout), stride, err, sizeof err),
+        if (check(mm3h_layout(h, li, &lay[(size_t) li].lay, sizeof(x3::ExpertLayout), packed ? lay[(size_t) li].blob : stride, err, sizeof err),
                   "helper layout", err))
             return 1;
-    if (check(mm3h_reserve(h, n_exp * n_lay, stride, err, sizeof err), "helper reserve", err)) return 1;
+    std::vector<mm3h_slot> desc;
+    uint64_t payload = 0, allocated = 0;
+    for (int li = 0; li < n_lay; ++li) for (int e = 0; e < n_exp; ++e) {
+        const size_t bytes = lay[(size_t) li].blob;
+        desc.push_back({bytes, li, 0}); payload += bytes;
+        allocated += packed ? (bytes + 255) & ~(size_t) 255 : stride;
+    }
+    if (packed) {
+        rejected(mm3h_reserve_packed(h, 0, desc.data(), err, sizeof err), "empty packed reserve rejected");
+        rejected(mm3h_reserve_packed(h, (int) desc.size(), nullptr, err, sizeof err), "null packed table rejected");
+        auto bad = desc; bad.back().layer = n_lay;
+        rejected(mm3h_reserve_packed(h, (int) bad.size(), bad.data(), err, sizeof err), "missing layer rejected");
+        bad = desc; ++bad.back().bytes;
+        rejected(mm3h_reserve_packed(h, (int) bad.size(), bad.data(), err, sizeof err), "wrong blob size rejected");
+        bad = desc; bad.back().reserved = 1;
+        rejected(mm3h_reserve_packed(h, (int) bad.size(), bad.data(), err, sizeof err), "unknown descriptor flags rejected");
+    }
+    if (check(packed ? mm3h_reserve_packed(h, (int) desc.size(), desc.data(), err, sizeof err)
+                     : mm3h_reserve(h, (int) desc.size(), stride, err, sizeof err), "helper reserve", err)) return 1;
+    mm3h_memory memory{}; mm3h_get_memory(h, &memory);
+    if (memory.allocated_bytes != allocated || memory.payload_bytes != 0 || memory.packed != packed) ++g_fail;
+    std::vector<float> blank_x(D), blank_out(D, -123.0f); int32_t blank_slot = 0; float one = 1;
+    mm3h_layer blank{0, 1, 1, lim, blank_x.data(), &blank_slot, &one, blank_out.data()};
+    rejected(mm3h_submit(h, &blank, 1, err, sizeof err), "unuploaded slot rejected before enqueue");
+    unchanged(blank_out, -123.0f, "unuploaded rejection preserves output");
     for (int li = 0; li < n_lay; ++li)
         for (int e = 0; e < n_exp; ++e)
             if (check(mm3h_upload(h, li * n_exp + e, li, lay[(size_t) li].h.data() + (size_t) e * lay[(size_t) li].blob,
@@ -323,6 +348,17 @@ int main(int argc, char** argv) {
                       "helper upload", err))
                 return 1;
 
+    mm3h_get_memory(h, &memory);
+    if (memory.payload_bytes != payload || memory.padding_bytes != allocated - payload) ++g_fail;
+    std::printf("arena %s: %llu bytes, payload %llu, padding %llu, fixed-stride equivalent %llu\n",
+        packed ? "compact" : "legacy", (unsigned long long) allocated, (unsigned long long) payload,
+        (unsigned long long) memory.padding_bytes, (unsigned long long) (desc.size() * stride));
+    rejected(mm3h_reserve(h, 1, stride, err, sizeof err), "second arena reserve rejected");
+    rejected(mm3h_layout(h, 0, &lay[0].lay, sizeof(x3::ExpertLayout), stride, err, sizeof err), "layout mutation rejected");
+    if (packed) {
+        rejected(mm3h_upload(h, 0, 1, lay[0].h.data(), lay[0].blob, err, sizeof err), "cross-layer upload rejected");
+        rejected(mm3h_upload(h, 0, 0, lay[0].h.data(), lay[0].blob - 1, err, sizeof err), "short packed upload rejected");
+    }
     struct BatchCase {
         int T = 0;
         std::vector<int32_t> slot;
@@ -419,6 +455,10 @@ int main(int argc, char** argv) {
     const int32_t good_slot = b0.slot[0];
     b0.slot[0] = n_exp * n_lay;
     rejected(mm3h_submit(h, ls.data(), n_lay, err, sizeof err), "out-of-range slot rejected before enqueue");
+    if (packed) {
+        b0.slot[0] = n_exp;
+        rejected(mm3h_submit(h, ls.data(), n_lay, err, sizeof err), "cross-layer round rejected before enqueue");
+    }
     b0.slot[0] = good_slot;
     if (check(mm3h_round(h, ls.data(), n_lay, err, sizeof err), "valid round after rejected inputs", err)) return 1;
     for (const auto& b : batch)

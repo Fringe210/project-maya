@@ -1,0 +1,15 @@
+{
+  "middle_edit": {
+    "first_different_token": 64591,
+    "reused": 17022,
+    "read": 94164,
+    "prompt_ms": 30704.9,
+    "new_code_ok": true
+  },
+  "original_branch": {
+    "reused": 111242,
+    "read": 1,
+    "prompt_ms": 90.1,
+    "codes_ok": true
+  }
+}

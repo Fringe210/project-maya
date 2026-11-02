@@ -1,0 +1,19 @@
+{"label": "long", "usage": {"prompt_tokens": 40000, "completion_tokens": 18, "total_tokens": 40018, "prompt_tokens_details": {"cached_tokens": 0}}, "timings": {"cache_n": 0, "prompt_n": 40000, "prompt_ms": 39345.6, "prompt_per_token_ms": 0.984, "prompt_per_second": 1016.6, "predicted_n": 18, "predicted_ms": 704.9, "predicted_per_token_ms": 39.161, "predicted_per_second": 25.5, "draft_n": 21, "draft_n_accepted": 12}, "wall_s": 40.10007882118225, "answer": "AMBRA-4729, CEDRO-8361, OPALE-2957"}
+{"label": "short-0", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 210}}, "timings": {"cache_n": 210, "prompt_n": 14, "prompt_ms": 101.8, "prompt_per_token_ms": 7.271, "prompt_per_second": 137.5, "predicted_n": 32, "predicted_ms": 1121.6, "predicted_per_token_ms": 35.05, "predicted_per_second": 28.5, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.2329885959625244, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "short-1", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 223}}, "timings": {"cache_n": 223, "prompt_n": 1, "prompt_ms": 49.4, "prompt_per_token_ms": 49.4, "prompt_per_second": 20.2, "predicted_n": 32, "predicted_ms": 1167.9, "predicted_per_token_ms": 36.497, "predicted_per_second": 27.4, "draft_n": 9, "draft_n_accepted": 7}, "wall_s": 1.2263293266296387, "answer": "Una cache LRU (Least Recently Used) \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 usati di recente e fa riservare le"}
+{"label": "short-2", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 223}}, "timings": {"cache_n": 223, "prompt_n": 1, "prompt_ms": 49.0, "prompt_per_token_ms": 49.0, "prompt_per_second": 20.4, "predicted_n": 32, "predicted_ms": 1091.0, "predicted_per_token_ms": 34.094, "predicted_per_second": 29.3, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.1493875980377197, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "short-3", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 223}}, "timings": {"cache_n": 223, "prompt_n": 1, "prompt_ms": 47.4, "prompt_per_token_ms": 47.4, "prompt_per_second": 21.1, "predicted_n": 32, "predicted_ms": 1106.5, "predicted_per_token_ms": 34.578, "predicted_per_second": 28.9, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.1632637977600098, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "return", "usage": {"prompt_tokens": 40000, "completion_tokens": 18, "total_tokens": 40018, "prompt_tokens_details": {"cached_tokens": 210}}, "timings": {"cache_n": 210, "prompt_n": 39790, "prompt_ms": 39158.8, "prompt_per_token_ms": 0.984, "prompt_per_second": 1016.1, "predicted_n": 18, "predicted_ms": 475.9, "predicted_per_token_ms": 26.439, "predicted_per_second": 37.8, "draft_n": 20, "draft_n_accepted": 12}, "wall_s": 39.679864168167114, "answer": "AMBRA-4729, CEDRO-8361, OPALE-2957"}
+{
+  "family": "minimax",
+  "context": 131072,
+  "input": 40000,
+  "reused": 210,
+  "read": 39790,
+  "prompt_ms": 39158.8,
+  "wall_s": 39.679864168167114,
+  "same_answer": true,
+  "codes_ok": true,
+  "dspark": 1,
+  "fixture_sha256": "24445877c43889eb3f241f7f21ffab2a46f6ae3dfd99177dd1c2a0ecfbfdaab8"
+}

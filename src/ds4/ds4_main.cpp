@@ -727,10 +727,6 @@ int serve(strata::ds4::Model& m, const std::string& eos_list, bool spec, float c
     std::vector<int> eos = parse_ids(eos_list);
     for (const std::string& l : m.info_lines()) std::printf("%s\n", l.c_str());
     std::printf("INFO logprobs=%d\n", strata::ds4::kTopLogprobs);   // (GEN logprobs=<k>: LP lines, k at most this)
-    if (m.seq_count() > 1)   // (--parallel: n conversations at once, GEN rid=<id>)
-        std::printf("READY %lld stop multi=%d\n", (long long) m.max_context(), m.seq_count());
-    else
-        std::printf("READY %lld stop\n", (long long) m.max_context());
     std::fflush(stdout);
     start_watchdog(m);
     std::fprintf(stderr, "maya ds4 serve: GEN <max_new> [keys] <ids>; GENI <max_new> [keys] <pictures> <ids>; STOP, QUIT\n");
@@ -1269,6 +1265,16 @@ int serve(strata::ds4::Model& m, const std::string& eos_list, bool spec, float c
                       gb(slot_ram_budget).c_str());
         note(msg);
     }
+    // Report the effective policy, including directory failures, rather than implying that
+    // shared-prefix reuse also parks complete conversations between unrelated requests.
+    std::printf("INFO conversation_cache=%d conversation_slots=%d conversation_ram_mib=%llu\n",
+                slot_max>0?1:0,slot_max,(unsigned long long)(slot_ram_budget/1048576));
+    // Cache initialization can refuse a directory; READY must follow the effective INFO.
+    if (m.seq_count() > 1)   // (--parallel: n conversations at once, GEN rid=<id>)
+        std::printf("READY %lld stop multi=%d\n", (long long) m.max_context(), m.seq_count());
+    else
+        std::printf("READY %lld stop\n", (long long) m.max_context());
+    std::fflush(stdout);
     if (slot_max > 0) {
 #if !defined(_WIN32)
         // (the server ends the engine with QUIT and waits for it; a SIGTERM to the whole process group - systemd
@@ -1437,12 +1443,14 @@ int serve(strata::ds4::Model& m, const std::string& eos_list, bool spec, float c
         for (const Pic& q : held)
             if ((size_t) q.start < c && !pic_same(pics, q)) c = (size_t) q.start;
         size_t from = 0;
+        const char* cache_source = "cold";
         bool continued = false;
         // the conversation continues, reused in place - a conversation has to be in the model first: a fresh engine
         // (the start of a run, so every restart) holds 0 tokens, and every prompt "continues" that to token 0; taken
         // as a continuation, the take below would never run for the folder's conversations, the case they are for
         if (n_state > 0 && c == n_state && n_state < r.ids.size()) {
             from = n_state;
+            cache_source = "live";
             continued = true;
         }
         else {
@@ -1462,14 +1470,21 @@ int serve(strata::ds4::Model& m, const std::string& eos_list, bool spec, float c
             beat();
             if (back > 0) {
                 from = back;
+                cache_source = "conversation";
                 continued = whole;
             } else if (pi >= 0 && prefix_take(pi)) {
                 from = plen;
+                cache_source = "shared-prefix";
                 held.clear();
-            } else if (rs >= 0 && m.restore(limit))
+            } else if (rs >= 0 && m.restore(limit)) {
                 from = (size_t) m.pos();
-            else m.reset();
+                cache_source = "checkpoint";
+            } else m.reset();
         }
+        // Counts only: never log prompt text, token IDs, tool arguments or reasoning.
+        std::fprintf(stderr,"ds4 cache%s: prompt=%zu state=%zu common=%zu reused=%zu read=%zu source=%s parking=%s saved=%zu\n",
+                     tag.c_str(),r.ids.size(),n_state,c,from,r.ids.size()-from,cache_source,
+                     slot_max>0?"on":"off",slots.size());
         if (from == 0) held.clear();   // (a slot that came back set held itself: its pictures' marks, not only start
                                        //  and hash, so the spans already in the KV are not encoded again)
         if ((int64_t) r.ids.size() + std::max(0LL, r.max_new) > m.max_context()) {

@@ -1,0 +1,68 @@
+{
+  "health": {
+    "status": "ok",
+    "max_context": 262144,
+    "model": "deepseek-v4.1-flash",
+    "max_text_file": 1048576,
+    "model_label": "DeepSeek V4.1 · Maya-S",
+    "images": true,
+    "api_key": false,
+    "defaults": {
+      "temperature": 1.0,
+      "top_p": 1.0,
+      "reasoning_effort": "high"
+    },
+    "version": "1.1.48",
+    "mcp_tools": false,
+    "unloaded": false
+  },
+  "status": {
+    "busy": false,
+    "queued": 0
+  },
+  "engine": {
+    "model": "deepseek-v4.1-flash",
+    "model_label": "DeepSeek V4.1 · Maya-S",
+    "max_context": 262144,
+    "images": true,
+    "version": "ds4-0.1",
+    "backend": "unified",
+    "architecture": "deepseek",
+    "context": 262144,
+    "kv": "fp4",
+    "kv_resident": 262144,
+    "expert_slots": 7265,
+    "engine_kind": "ds4",
+    "cpu_experts": 8095,
+    "ram_experts": 7315,
+    "cpu_threads": 16,
+    "engine": "ds4-0.1",
+    "helper_gpu": -1,
+    "helper_slots": 3168,
+    "helper_allocated_bytes": 39998914560,
+    "engram_layers": 2,
+    "engram_lookups": 48,
+    "vision": "ds4",
+    "vision_patch": 14,
+    "vision_merge": 3,
+    "vision_min_pixels": 295936,
+    "vision_max_tokens": 1024,
+    "vision_max_wh_ratio": 0,
+    "image_token": 129264,
+    "vision_gpu": 0,
+    "vision_mib": 0,
+    "vision_room_mib": 318,
+    "vision_room": "chunk",
+    "logprobs": 20,
+    "conversation_cache": 1,
+    "conversation_slots": 4,
+    "conversation_ram_mib": 1024,
+    "maya_version": "1.1.48",
+    "trained_context": 1048576,
+    "dspark": true,
+    "speculation": [
+      "DSpark",
+      "Lookup"
+    ]
+  }
+}

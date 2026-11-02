@@ -1,0 +1,172 @@
+{
+  "requests": [
+    {
+      "prompt_tokens": 1690,
+      "completion_tokens": 1,
+      "total_tokens": 1691,
+      "prompt_tokens_details": {
+        "cached_tokens": 161
+      }
+    },
+    {
+      "prompt_tokens": 1690,
+      "completion_tokens": 1,
+      "total_tokens": 1691,
+      "prompt_tokens_details": {
+        "cached_tokens": 168
+      }
+    },
+    {
+      "prompt_tokens": 1690,
+      "completion_tokens": 1,
+      "total_tokens": 1691,
+      "prompt_tokens_details": {
+        "cached_tokens": 168
+      }
+    },
+    {
+      "prompt_tokens": 1690,
+      "completion_tokens": 1,
+      "total_tokens": 1691,
+      "prompt_tokens_details": {
+        "cached_tokens": 168
+      }
+    }
+  ],
+  "parked_slots": 4,
+  "parked_payload_bytes": 702226304,
+  "system_ram_before": 98903527424,
+  "system_ram_after": 82884055040,
+  "engine": {
+    "model": "MiniMax-M3.1-Flash",
+    "model_label": "MiniMax M3.1 \u00b7 Maya-S",
+    "max_context": 262144,
+    "images": true,
+    "version": "mm3",
+    "backend": "unified",
+    "architecture": "minimax",
+    "engine": "mm3",
+    "engine_kind": "mm3",
+    "experts_vram": 4791,
+    "experts": 7296,
+    "expert_slots": 4791,
+    "ram_slots": 2505,
+    "dspark": 1,
+    "kv": "int8",
+    "cpu_threads": 16,
+    "cpu_experts": 0,
+    "ctx": 262144,
+    "kv_resident": 65536,
+    "helper_slots": 2505,
+    "helper_allocated_bytes": 37891325952,
+    "helper_payload_bytes": 37891325952,
+    "helper_padding_bytes": 0,
+    "helper_packed": 1,
+    "prefill_chunk": 4096,
+    "vision": "mm3",
+    "image_token": 200025,
+    "image_start": 200029,
+    "image_end": 200030,
+    "vision_patch": 14,
+    "vision_merge": 2,
+    "vision_max_pixels": 451584,
+    "vision_min_pixels": 3136,
+    "conversation_cache": 1,
+    "conversation_slots": 4,
+    "conversation_ram_mib": 24576,
+    "maya_version": "1.1.48",
+    "trained_context": 1048576,
+    "speculation": [
+      "DSpark"
+    ]
+  },
+  "gpu_map": [
+    {
+      "dev": 0,
+      "index": 0,
+      "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+      "total": 102641958912,
+      "free": 1012334592,
+      "parts": {
+        "weights": 11464751616,
+        "kv": 8194621440,
+        "act": 2175775060,
+        "prompt": 0,
+        "tp": 0,
+        "drafter": 3191206620,
+        "pool": 73130065920,
+        "helper": 0,
+        "vision": 0,
+        "rest": 3473203664,
+        "other": 0
+      },
+      "backend": null,
+      "device": null,
+      "role": null,
+      "helper_slots": 0,
+      "window": 0,
+      "drafter": 3191206620,
+      "tail": 0,
+      "borrow": 0,
+      "lendable": 0,
+      "vision_lent": false,
+      "vision_own": 0,
+      "slots": 4839,
+      "layers": [
+        0,
+        59
+      ],
+      "ctx": 262144,
+      "tp_n": 1,
+      "kv_ram": 16609443840,
+      "measured": "start"
+    },
+    {
+      "dev": -1,
+      "index": "hip:0",
+      "name": "AMD Radeon PRO W7800 48GB",
+      "total": 51495190528,
+      "free": 9451040768,
+      "parts": {
+        "weights": 0,
+        "kv": 0,
+        "act": 0,
+        "prompt": 0,
+        "tp": 0,
+        "drafter": 0,
+        "pool": 0,
+        "helper": 37891325952,
+        "vision": 0,
+        "rest": 4152823808,
+        "other": 0
+      },
+      "backend": "hip",
+      "device": 0,
+      "role": "helper",
+      "helper_slots": 2505,
+      "window": 0,
+      "drafter": 0,
+      "tail": 0,
+      "borrow": 0,
+      "lendable": 0,
+      "vision_lent": false,
+      "vision_own": 0,
+      "slots": 0,
+      "layers": null,
+      "ctx": 0,
+      "tp_n": 0,
+      "kv_ram": 0,
+      "measured": "start"
+    }
+  ],
+  "status": {
+    "busy": false,
+    "queued": 0,
+    "phase": "answering",
+    "prompt_tokens": 1690,
+    "generated": 1,
+    "tool": null,
+    "tail": "OK",
+    "max_tokens": 1
+  }
+}

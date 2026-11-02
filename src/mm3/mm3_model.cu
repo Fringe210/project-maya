@@ -124,6 +124,8 @@ struct HelperDll {
     int (*open)(int, int, int, mm3h**, char*, size_t) = nullptr;
     int (*layout)(mm3h*, int, const void*, size_t, size_t, char*, size_t) = nullptr;
     int (*reserve)(mm3h*, int, size_t, char*, size_t) = nullptr;
+    int (*reserve_packed)(mm3h*, int, const mm3h_slot*, char*, size_t) = nullptr;
+    void (*get_memory)(mm3h*, mm3h_memory*) = nullptr;
     int (*upload)(mm3h*, int, int, const void*, size_t, char*, size_t) = nullptr;
     int (*round)(mm3h*, const mm3h_layer*, int, char*, size_t) = nullptr;
     int (*submit)(mm3h*, const mm3h_layer*, int, char*, size_t) = nullptr;
@@ -141,6 +143,8 @@ struct HelperDll {
         open = (decltype(open)) get("mm3h_open");
         layout = (decltype(layout)) get("mm3h_layout");
         reserve = (decltype(reserve)) get("mm3h_reserve");
+        reserve_packed = (decltype(reserve_packed)) get("mm3h_reserve_packed");
+        get_memory = (decltype(get_memory)) get("mm3h_get_memory");
         upload = (decltype(upload)) get("mm3h_upload");
         round = (decltype(round)) get("mm3h_round");
         submit = (decltype(submit)) get("mm3h_submit");
@@ -1729,16 +1733,30 @@ std::unique_ptr<HelperDll> hlp;   // (Options::helper: the experts outside VRAM 
                 }
                 std::stable_sort(cand.begin(), cand.end(), [](const HC& a, const HC& b) { return a.n > b.n; });
                 const size_t budget = (size_t) (std::max(0.0, o.helper_gb) * (1u << 30));
-                const size_t n = stride > 0 ? std::min(cand.size(), budget / stride) : 0;
+                const char* pack_env = ::mm3::env("MM3_HELPER_PACKED");
+                const bool packed = hlp->reserve_packed && hlp->get_memory && (!pack_env || std::atoi(pack_env) != 0);
+                std::vector<mm3h_slot> desc;
+                if (packed) {
+                    size_t bytes = 0;
+                    std::vector<HC> selected;
+                    for (const HC& c : cand) {
+                        const size_t nb = up(L[(size_t) c.li].blob);
+                        if (nb > budget - bytes) continue;
+                        selected.push_back(c); desc.push_back({L[(size_t) c.li].blob, c.li, 0}); bytes += nb;
+                    }
+                    cand = std::move(selected);
+                } else cand.resize(stride > 0 ? std::min(cand.size(), budget / stride) : 0);
+                const size_t n = cand.size();
                 char hb[512] = {0};
                 bool ok = n > 0 && hlp->open(0, g.dim, g.ff, &hlp->h, hb, sizeof hb) == 0;
                 for (size_t li = 0; ok && li < L.size(); ++li) {
                     const Layer& l = L[li];
                     if (!l.moe) continue;
-                    if (hlp->layout(hlp->h, (int) li, &l.lay, sizeof(x3::ExpertLayout), stride, hb, sizeof hb) != 0)
+                    if (hlp->layout(hlp->h, (int) li, &l.lay, sizeof(x3::ExpertLayout), packed ? l.blob : stride, hb, sizeof hb) != 0)
                         ok = false;
                 }
-                ok = ok && hlp->reserve(hlp->h, (int) n, stride, hb, sizeof hb) == 0;
+                ok = ok && (packed ? hlp->reserve_packed(hlp->h, (int) n, desc.data(), hb, sizeof hb)
+                                   : hlp->reserve(hlp->h, (int) n, stride, hb, sizeof hb)) == 0;
                 int used = 0;
                 for (size_t i = 0; ok && i < n; ++i) {
                     Layer& l = L[(size_t) cand[i].li];
@@ -1759,10 +1777,21 @@ std::unique_ptr<HelperDll> hlp;   // (Options::helper: the experts outside VRAM 
                     for (Layer& l : L) l.hlp_slot.clear();
                 } else {
                     st.helper_slots = used;
-                    st.helper_allocated_bytes = (uint64_t)used * stride;
-                    info.push_back("helper: " + std::to_string(used) + " experts on the second card (" +
-                                   std::to_string(stride >> 20) + " MB each, " + std::to_string((used * stride) >> 30) +
-                                   " GB), the most routed");
+                    mm3h_memory mem{};
+                    if (hlp->get_memory) hlp->get_memory(hlp->h, &mem);
+                    else { mem.allocated_bytes = (uint64_t) used * stride;
+                        for (const HC& c : cand) mem.payload_bytes += L[(size_t) c.li].blob;
+                        mem.padding_bytes = mem.allocated_bytes - mem.payload_bytes; }
+                    st.helper_allocated_bytes = mem.allocated_bytes;
+                    st.helper_payload_bytes = mem.payload_bytes; st.helper_padding_bytes = mem.padding_bytes;
+                    st.helper_packed = packed;
+                    info.push_back("helper: " + std::to_string(used) + " experts on AMD, " +
+                        (packed ? "compact" : "fixed-stride") + " arena " + std::to_string(mem.allocated_bytes) +
+                        " bytes, payload " + std::to_string(mem.payload_bytes) + ", padding " +
+                        std::to_string(mem.padding_bytes) + "; " +
+                        std::to_string(st.experts - st.resident - used) + " experts outside both GPUs");
+                    if (const char* v = ::mm3::env("MM3_HELPER_CHECK"); v && std::atoi(v) > 0)
+                        info.push_back("helper upload parity: all " + std::to_string(used) + " experts byte-checked");
                 }
             }
         }
@@ -3623,6 +3652,77 @@ bool Model::restore_prefix(int prefix, int mode, std::string& err) {
         CK(cudaGetLastError());
     }
     return true;   // subsequent forwards use these streams, after the restores
+}
+size_t Model::prefix_cache_bytes(int prefix) const {
+    if (tpe || p->o.seqs > 1 || prefix <= 0 || prefix > p->o.max_ctx) return 0;
+    const size_t per = k::kv_bytes(p->o.kv_k, p->o.kv_v, (size_t) prefix * p->g.n_kv) +
+                       (size_t) prefix * p->g.ix_dim * sizeof(uint16_t);
+    return 12 * sizeof(uint64_t) + p->L.size() * per + (p->draftm ? p->draftm->cache_bytes() : 0);
+}
+bool Model::prefix_cache_copy(int prefix, std::vector<uint8_t>* dst, const std::vector<uint8_t>* src,
+                              std::string& err) {
+    const size_t total = prefix_cache_bytes(prefix);
+    if (!total) { err = "prefix snapshots require a single layer-split sequence and a valid prefix"; return false; }
+    const size_t draft = p->draftm ? p->draftm->cache_bytes() : 0;
+    const std::array<uint64_t, 12> hdr = {{0x3148434143334d4dull, (uint64_t) prefix, p->L.size(),
+        (uint64_t) p->g.n_kv, (uint64_t) p->g.ix_dim, (uint64_t) p->o.kv_k, (uint64_t) p->o.kv_v,
+        (uint64_t) p->o.kv_rot, (uint64_t) p->o.max_ctx, draft, total, 0}};
+    // Validate the entire layout before any model state changes. Buffers stay in this process/model.
+    if (src && (src->size() != total || std::memcmp(src->data(), hdr.data(), sizeof hdr))) {
+        err = "conversation snapshot layout mismatch"; return false;
+    }
+    if (dst) {
+        try { dst->resize(total); }
+        catch (const std::bad_alloc&) { err = "conversation snapshot does not fit in RAM"; return false; }
+        std::memcpy(dst->data(), hdr.data(), sizeof hdr);
+    }
+    for (const auto& d : p->D) { CK(cudaSetDevice(d.id)); CK(cudaStreamSynchronize(d.s)); }
+    size_t at = sizeof hdr;
+    const auto copy = [&](void* a, size_t n, bool host) -> bool {
+        if (!n) return true;
+        if (dst) {
+            if (host) std::memcpy(dst->data() + at, a, n);
+            else { CK(cudaMemcpy(dst->data() + at, a, n, cudaMemcpyDeviceToHost)); }
+        } else {
+            if (host) std::memcpy(a, src->data() + at, n);
+            else { CK(cudaMemcpy(a, src->data() + at, n, cudaMemcpyHostToDevice)); }
+        }
+        at += n;
+        return true;
+    };
+    const size_t rows = (size_t) prefix * p->g.n_kv;
+    for (auto& l : p->L) {
+        CK(cudaSetDevice(p->D[(size_t) l.dev].id));
+        const bool host = l.kvh.ring > 0;
+        const auto& q = host ? l.kvh.q : l.kvq;
+        if (q.kf == k::kKvBf16) {
+            if (!copy(host ? l.kvh.kc : l.kc, rows * k::kv_code_bytes(q.kf), host)) return false;
+        } else if (!copy(q.kc, rows * k::kv_code_bytes(q.kf), host) ||
+                   !copy(q.ks, rows * k::kv_scale_bytes(q.kf), host)) return false;
+        if (q.vf == k::kKvBf16) {
+            if (!copy(host ? l.kvh.vc : l.vc, rows * k::kv_code_bytes(q.vf), host)) return false;
+        } else if (!copy(q.vc, rows * k::kv_code_bytes(q.vf), host) ||
+                   !copy(q.vs, rows * k::kv_scale_bytes(q.vf), host)) return false;
+        if (!copy(l.ic, (size_t) prefix * p->g.ix_dim * sizeof(uint16_t), false)) return false;
+        if (src && host) {
+            // The ring still contains another conversation: invalidate every tag, then copy exact host rows.
+            auto& d = p->D[(size_t) l.dev];
+            CK(cudaMemsetAsync(l.kvh.tag, 0xff, (size_t) l.kvh.ring * sizeof(int), d.s));
+            k::kv_restore_prefix(l.kc, l.vc, l.kvq, l.kvh, prefix, p->g.n_kv, d.s);
+            CK(cudaGetLastError());
+        }
+    }
+    if (draft && !(dst ? p->draftm->cache_save(dst->data() + at, draft, err)
+                      : p->draftm->cache_load(src->data() + at, draft, err))) return false;
+    for (const auto& d : p->D) { CK(cudaSetDevice(d.id)); CK(cudaStreamSynchronize(d.s)); }
+    if (src) p->cur_pos = prefix - 1;
+    return true;
+}
+bool Model::prefix_cache_save(int prefix, std::vector<uint8_t>& data, std::string& err) {
+    return prefix_cache_copy(prefix, &data, nullptr, err);
+}
+bool Model::prefix_cache_load(int prefix, const std::vector<uint8_t>& data, std::string& err) {
+    return prefix_cache_copy(prefix, nullptr, &data, err);
 }
 int Model::max_ctx() const { return tpe ? tpe->max_ctx() : p->o.max_ctx; }
 int Model::bos() const { return tpe ? tpe->bos() : p->g.bos; }

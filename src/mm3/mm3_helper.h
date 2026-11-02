@@ -47,6 +47,15 @@ MM3H_API int mm3h_open(int device, int n_embd, int n_ff, mm3h** out, char* err, 
 MM3H_API int mm3h_layout(mm3h* h, int layer, const void* layout_bytes, size_t bytes, size_t stride, char* err, size_t cap);
 // Allocates `slots` expert blobs of `stride` bytes each in the helper's VRAM (one arena).
 MM3H_API int mm3h_reserve(mm3h* h, int slots, size_t stride, char* err, size_t cap);
+// Compact arena extension; old reserve/upload/round entry points remain compatible.
+// Each descriptor binds one slot to its layer and exact blob size. Offsets are 256-byte aligned.
+typedef struct mm3h_slot { uint64_t bytes; int32_t layer; uint32_t reserved; } mm3h_slot;
+typedef struct mm3h_memory {
+    uint64_t allocated_bytes, payload_bytes, padding_bytes;
+    int32_t slots, packed;
+} mm3h_memory;
+MM3H_API int mm3h_reserve_packed(mm3h* h, int slots, const mm3h_slot* desc, char* err, size_t cap);
+MM3H_API void mm3h_get_memory(mm3h* h, mm3h_memory* out);
 // Copies one assembled expert blob (the primary's pinned-pool format) into slot `slot`, laid out as `layer`'s.
 MM3H_API int mm3h_upload(mm3h* h, int slot, int layer, const void* blob, size_t bytes, char* err, size_t cap);
 // Runs one decode round: every layer in order on the helper's stream, one device sync at the end.

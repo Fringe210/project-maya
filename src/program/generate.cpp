@@ -1435,6 +1435,8 @@ static int glm_pack_generate(const Options& o) {
         std::snprintf(s, sizeof s, "%.2f GB", (double) b / 1e9);
         return std::string(s);
     };
+    if (o.serve) std::printf("INFO conversation_cache=%d conversation_slots=%d conversation_ram_mib=%llu\n",
+                             slot_max > 0, slot_max, (unsigned long long) (slot_ram ? slot_cap >> 20 : 0));
     if (slot_max > 0 && slot_ram)
         note("slots parked in RAM (" + gb(slot_cap) + " max) - nothing is written to disk, the states die with the run");
     if (slot_max > 0 && !slot_ram) {

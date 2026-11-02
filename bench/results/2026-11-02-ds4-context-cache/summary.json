@@ -1,0 +1,139 @@
+{
+  "date": "2026-11-02",
+  "cause": "Conversation parking was disabled; unrelated short requests replaced the active state, leaving the shared system/tools prefix.",
+  "historical_log": {
+    "prompt": 111183,
+    "reused": 17022,
+    "read": 94161,
+    "prompt_ms": 33140,
+    "original_request_token_streams_available": false
+  },
+  "control": {
+    "label": "control",
+    "keep": 0,
+    "context": 262144,
+    "dspark": true,
+    "input_tokens": 111243,
+    "reused": 17022,
+    "read": 94221,
+    "prompt_ms": 32725.9,
+    "wall_s": 33.80800771713257,
+    "codes_ok": true,
+    "drafts_total": 61,
+    "fixture_sha256": "017fefbd4154a7ad0b145ca171055b43761fe9efff90432dee477edf4cb5189f"
+  },
+  "fixed": {
+    "label": "fixed",
+    "keep": 1,
+    "context": 262144,
+    "dspark": true,
+    "input_tokens": 111243,
+    "reused": 111214,
+    "read": 29,
+    "prompt_ms": 712.0,
+    "wall_s": 1.832101583480835,
+    "codes_ok": true,
+    "drafts_total": 58,
+    "fixture_sha256": "017fefbd4154a7ad0b145ca171055b43761fe9efff90432dee477edf4cb5189f",
+    "changed_prefix_ok": true
+  },
+  "same_resumed_request": true,
+  "prefill_latency_ratio": 45.96334269662921,
+  "wall_time_ratio": 18.453129467253813,
+  "constraints": {
+    "context": 262144,
+    "dspark": "on",
+    "mmap_experts": "off",
+    "amd_budget_decimal_GB": 40,
+    "splice": false,
+    "approximate_routing": false
+  },
+  "cache": {
+    "enabled": true,
+    "ram_slots": 4,
+    "steady_state_RAM_GiB_budget": 1,
+    "directory": "E:/project-maya/data/ds4-slots",
+    "persistence": "Existing behavior: RAM first, disk spill/clean shutdown; at least one RAM slot may exceed the budget."
+  },
+  "tests": {
+    "restore_points_and_slot_environment": "12 passed",
+    "unified_launcher": "2 passed",
+    "real_document_codes": true,
+    "changed_system_prefix": true
+  },
+  "limits": [
+    "Historical prompts were not recorded, so additional client-side history edits in the original incident cannot be excluded.",
+    "The controlled reproduction demonstrates state loss across unrelated requests with parking off; genuinely changed prefixes still require exact recomputation.",
+    "Latency ratios concern this one resumed-request scenario, not decode throughput or arbitrary new sessions."
+  ],
+  "branches": {
+    "middle_edit": {
+      "first_different_token": 64591,
+      "reused": 17022,
+      "read": 94164,
+      "prompt_ms": 30704.9,
+      "new_code_ok": true
+    },
+    "original_branch": {
+      "reused": 111242,
+      "read": 1,
+      "prompt_ms": 90.1,
+      "codes_ok": true
+    }
+  },
+  "binaries": {
+    "build/maya-backend.exe": {
+      "sha256": "22595b7c94c58c4f4b626fe5bfcf9b5207b535ba2dfbe284d93bc43ca5facad3",
+      "bytes": 128732160
+    },
+    "build/maya-backend-cache-before.exe": {
+      "sha256": "d86e11286468982f3c1b8c52b25283db485d97473b5545813bdea0349a6cc25a",
+      "bytes": 128732160
+    }
+  },
+  "runtime": {
+    "model": "deepseek-v4.1-flash",
+    "model_label": "DeepSeek V4.1 · Maya-S",
+    "max_context": 262144,
+    "images": true,
+    "version": "ds4-0.1",
+    "backend": "unified",
+    "architecture": "deepseek",
+    "context": 262144,
+    "kv": "fp4",
+    "kv_resident": 262144,
+    "expert_slots": 7233,
+    "engine_kind": "ds4",
+    "cpu_experts": 8127,
+    "ram_experts": 7469,
+    "cpu_threads": 16,
+    "engine": "ds4-0.1",
+    "helper_gpu": -1,
+    "helper_slots": 3168,
+    "helper_allocated_bytes": 39998914560,
+    "engram_layers": 2,
+    "engram_lookups": 48,
+    "vision": "ds4",
+    "vision_patch": 14,
+    "vision_merge": 3,
+    "vision_min_pixels": 295936,
+    "vision_max_tokens": 1024,
+    "vision_max_wh_ratio": 0,
+    "image_token": 129264,
+    "vision_gpu": 0,
+    "vision_mib": 0,
+    "vision_room_mib": 318,
+    "vision_room": "chunk",
+    "logprobs": 20,
+    "conversation_cache": 1,
+    "conversation_slots": 4,
+    "conversation_ram_mib": 1024,
+    "maya_version": "1.1.48",
+    "trained_context": 1048576,
+    "dspark": true,
+    "speculation": [
+      "DSpark",
+      "Lookup"
+    ]
+  }
+}

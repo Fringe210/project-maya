@@ -1,0 +1,228 @@
+{"label": "40k-cold", "usage": {"prompt_tokens": 40000, "completion_tokens": 18, "total_tokens": 40018, "prompt_tokens_details": {"cached_tokens": 0}}, "timings": {"cache_n": 0, "prompt_n": 40000, "prompt_ms": 35437.4, "prompt_per_token_ms": 0.886, "prompt_per_second": 1128.8, "predicted_n": 18, "predicted_ms": 522.6, "predicted_per_token_ms": 29.033, "predicted_per_second": 34.4, "draft_n": 17, "draft_n_accepted": 13}, "wall_s": 36.0063259601593, "answer": "AMBRA-4729, CEDRO-8361, OPALE-2957"}
+{"label": "40k-short-0", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 210}}, "timings": {"cache_n": 210, "prompt_n": 14, "prompt_ms": 93.0, "prompt_per_token_ms": 6.643, "prompt_per_second": 150.5, "predicted_n": 32, "predicted_ms": 1152.5, "predicted_per_token_ms": 36.016, "predicted_per_second": 27.8, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.263221025466919, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "40k-short-1", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 223}}, "timings": {"cache_n": 223, "prompt_n": 1, "prompt_ms": 51.3, "prompt_per_token_ms": 51.3, "prompt_per_second": 19.5, "predicted_n": 32, "predicted_ms": 1069.3, "predicted_per_token_ms": 33.416, "predicted_per_second": 29.9, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.1290159225463867, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "40k-short-2", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 223}}, "timings": {"cache_n": 223, "prompt_n": 1, "prompt_ms": 46.0, "prompt_per_token_ms": 46.0, "prompt_per_second": 21.7, "predicted_n": 32, "predicted_ms": 1147.6, "predicted_per_token_ms": 35.862, "predicted_per_second": 27.9, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.2016446590423584, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "40k-short-3", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 223}}, "timings": {"cache_n": 223, "prompt_n": 1, "prompt_ms": 49.2, "prompt_per_token_ms": 49.2, "prompt_per_second": 20.3, "predicted_n": 32, "predicted_ms": 1166.1, "predicted_per_token_ms": 36.441, "predicted_per_second": 27.4, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.2268002033233643, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "40k-return", "usage": {"prompt_tokens": 40000, "completion_tokens": 18, "total_tokens": 40018, "prompt_tokens_details": {"cached_tokens": 39999}}, "timings": {"cache_n": 39999, "prompt_n": 1, "prompt_ms": 832.9, "prompt_per_token_ms": 832.9, "prompt_per_second": 1.2, "predicted_n": 18, "predicted_ms": 417.3, "predicted_per_token_ms": 23.183, "predicted_per_second": 43.1, "draft_n": 21, "draft_n_accepted": 12}, "wall_s": 1.2890517711639404, "answer": "AMBRA-4729, CEDRO-8361, OPALE-2957"}
+{"label": "80k-cold", "usage": {"prompt_tokens": 80000, "completion_tokens": 18, "total_tokens": 80018, "prompt_tokens_details": {"cached_tokens": 220}}, "timings": {"cache_n": 220, "prompt_n": 79780, "prompt_ms": 84450.3, "prompt_per_token_ms": 1.059, "prompt_per_second": 944.7, "predicted_n": 18, "predicted_ms": 423.3, "predicted_per_token_ms": 23.517, "predicted_per_second": 42.5, "draft_n": 14, "draft_n_accepted": 13}, "wall_s": 84.97120308876038, "answer": "AMBRA-4729, CEDRO-8361, OPALE-2957"}
+{"label": "80k-short-0", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 210}}, "timings": {"cache_n": 210, "prompt_n": 14, "prompt_ms": 87.8, "prompt_per_token_ms": 6.271, "prompt_per_second": 159.5, "predicted_n": 32, "predicted_ms": 1125.7, "predicted_per_token_ms": 35.178, "predicted_per_second": 28.4, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.223266839981079, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "80k-short-1", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 223}}, "timings": {"cache_n": 223, "prompt_n": 1, "prompt_ms": 48.0, "prompt_per_token_ms": 48.0, "prompt_per_second": 20.8, "predicted_n": 32, "predicted_ms": 1151.4, "predicted_per_token_ms": 35.981, "predicted_per_second": 27.8, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.209622859954834, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "80k-short-2", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 223}}, "timings": {"cache_n": 223, "prompt_n": 1, "prompt_ms": 46.1, "prompt_per_token_ms": 46.1, "prompt_per_second": 21.7, "predicted_n": 32, "predicted_ms": 1145.5, "predicted_per_token_ms": 35.797, "predicted_per_second": 27.9, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.201148509979248, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "80k-short-3", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 223}}, "timings": {"cache_n": 223, "prompt_n": 1, "prompt_ms": 48.3, "prompt_per_token_ms": 48.3, "prompt_per_second": 20.7, "predicted_n": 32, "predicted_ms": 1136.8, "predicted_per_token_ms": 35.525, "predicted_per_second": 28.1, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.1949446201324463, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "80k-return", "usage": {"prompt_tokens": 80000, "completion_tokens": 18, "total_tokens": 80018, "prompt_tokens_details": {"cached_tokens": 79999}}, "timings": {"cache_n": 79999, "prompt_n": 1, "prompt_ms": 1063.9, "prompt_per_token_ms": 1063.9, "prompt_per_second": 0.9, "predicted_n": 18, "predicted_ms": 407.4, "predicted_per_token_ms": 22.633, "predicted_per_second": 44.2, "draft_n": 14, "draft_n_accepted": 13}, "wall_s": 1.5723097324371338, "answer": "AMBRA-4729, CEDRO-8361, OPALE-2957"}
+{"label": "261k-cold", "usage": {"prompt_tokens": 261001, "completion_tokens": 18, "total_tokens": 261019, "prompt_tokens_details": {"cached_tokens": 40668}}, "timings": {"cache_n": 40668, "prompt_n": 220333, "prompt_ms": 545318.7, "prompt_per_token_ms": 2.475, "prompt_per_second": 404.0, "predicted_n": 18, "predicted_ms": 522.4, "predicted_per_token_ms": 29.022, "predicted_per_second": 34.5, "draft_n": 13, "draft_n_accepted": 13}, "wall_s": 546.1297605037689, "answer": "AMBRA-4729, CEDRO-8361, OPALE-2957"}
+{"label": "261k-short-0", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 210}}, "timings": {"cache_n": 210, "prompt_n": 14, "prompt_ms": 87.7, "prompt_per_token_ms": 6.264, "prompt_per_second": 159.6, "predicted_n": 32, "predicted_ms": 1136.3, "predicted_per_token_ms": 35.509, "predicted_per_second": 28.2, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.2342958450317383, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "261k-short-1", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 223}}, "timings": {"cache_n": 223, "prompt_n": 1, "prompt_ms": 51.2, "prompt_per_token_ms": 51.2, "prompt_per_second": 19.5, "predicted_n": 32, "predicted_ms": 1138.9, "predicted_per_token_ms": 35.591, "predicted_per_second": 28.1, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.2001609802246094, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "261k-short-2", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 223}}, "timings": {"cache_n": 223, "prompt_n": 1, "prompt_ms": 48.2, "prompt_per_token_ms": 48.2, "prompt_per_second": 20.7, "predicted_n": 32, "predicted_ms": 1143.7, "predicted_per_token_ms": 35.741, "predicted_per_second": 28.0, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.202207088470459, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "261k-short-3", "usage": {"prompt_tokens": 224, "completion_tokens": 32, "total_tokens": 256, "prompt_tokens_details": {"cached_tokens": 223}}, "timings": {"cache_n": 223, "prompt_n": 1, "prompt_ms": 47.9, "prompt_per_token_ms": 47.9, "prompt_per_second": 20.9, "predicted_n": 32, "predicted_ms": 1139.1, "predicted_per_token_ms": 35.597, "predicted_per_second": 28.1, "draft_n": 12, "draft_n_accepted": 9}, "wall_s": 1.197873592376709, "answer": "Una cache LRU (Least Recently Used, \"meno usata di recente\") \u00e8 una struttura di memorizzazione che mantiene i dati pi\u00f9 consultati vic"}
+{"label": "261k-return", "usage": {"prompt_tokens": 261001, "completion_tokens": 18, "total_tokens": 261019, "prompt_tokens_details": {"cached_tokens": 261000}}, "timings": {"cache_n": 261000, "prompt_n": 1, "prompt_ms": 4174.0, "prompt_per_token_ms": 4174.0, "prompt_per_second": 0.2, "predicted_n": 18, "predicted_ms": 381.9, "predicted_per_token_ms": 21.217, "predicted_per_second": 47.1, "draft_n": 13, "draft_n_accepted": 13}, "wall_s": 4.856458425521851, "answer": "AMBRA-4729, CEDRO-8361, OPALE-2957"}
+{"label": "changed-prefix", "usage": {"prompt_tokens": 203, "completion_tokens": 6, "total_tokens": 209, "prompt_tokens_details": {"cached_tokens": 161}}, "timings": {"cache_n": 161, "prompt_n": 42, "prompt_ms": 624.0, "prompt_per_token_ms": 14.857, "prompt_per_second": 67.3, "predicted_n": 6, "predicted_ms": 94.1, "predicted_per_token_ms": 15.683, "predicted_per_second": 63.8, "draft_n": 7, "draft_n_accepted": 5}, "wall_s": 0.7361042499542236, "answer": "VIOLA-6038"}
+{"label": "261k-original-branch", "usage": {"prompt_tokens": 261001, "completion_tokens": 18, "total_tokens": 261019, "prompt_tokens_details": {"cached_tokens": 261000}}, "timings": {"cache_n": 261000, "prompt_n": 1, "prompt_ms": 1580.1, "prompt_per_token_ms": 1580.1, "prompt_per_second": 0.6, "predicted_n": 18, "predicted_ms": 380.7, "predicted_per_token_ms": 21.15, "predicted_per_second": 47.3, "draft_n": 13, "draft_n_accepted": 13}, "wall_s": 2.242276906967163, "answer": "AMBRA-4729, CEDRO-8361, OPALE-2957"}
+{"label": "261k-code-320", "usage": {"prompt_tokens": 261069, "completion_tokens": 320, "total_tokens": 261389, "prompt_tokens_details": {"cached_tokens": 261018}}, "timings": {"cache_n": 261018, "prompt_n": 51, "prompt_ms": 6175.8, "prompt_per_token_ms": 121.094, "prompt_per_second": 8.3, "predicted_n": 320, "predicted_ms": 9902.5, "predicted_per_token_ms": 30.945, "predicted_per_second": 32.3, "draft_n": 238, "draft_n_accepted": 189}, "wall_s": 16.388368129730225, "answer": "```python\nfrom collections import OrderedDict\nfrom typing import Generic, TypeVar, Optional, Iterator, Any\n\nK = TypeVar(\"K\")\nV = TypeVar(\"V\")\n\n\nclass LRUCache(Generic[K, V]):\n    \"\"\"Cache LRU (Least Recently Used) con capacit\u00e0 configurabile.\n\n    Internamente usa una OrderedDict: le chiavi pi\u00f9 usate di recente stanno\n    in fondo, le meno usate in cima. Quando la cache \u00e8 piena, l'elemento in\n    cima (quello meno usato di recente) viene espulso.\n    \"\"\"\n\n    def __init__(self, capacity: int) -> None:\n        if capacity <= 0:\n            raise ValueError(\"capacity deve essere > 0\")\n        self._capacity: int = capacity\n        self._data: \"OrderedDict[K, V]\" = OrderedDict()\n\n    # ---- lettura -------------------------------------------------------\n    def get(self, key: K, default: Optional[V] = None) -> Optional[V]:\n        \"\"\"Restituisce il valore associato a `key` e lo marca come usato.\n\n        Se la chiave non c'\u00e8, restituisce `default` (None se non indicato).\n        \"\"\"\n        if key not in self._data:\n            return default\n        self._data.move_to_end(key)   # la chiave diventa la pi\u00f9 recente\n        return self._data[key]\n\n    # ---- scrittura -----------------------------------------------------\n    def put(self, key: K, value: V) -> None:\n        \"\"\""}
+{
+  "engine": {
+    "model": "MiniMax-M3.1-Flash",
+    "model_label": "MiniMax M3.1 \u00b7 Maya-S",
+    "max_context": 262144,
+    "images": true,
+    "version": "mm3",
+    "backend": "unified",
+    "architecture": "minimax",
+    "engine": "mm3",
+    "engine_kind": "mm3",
+    "experts_vram": 4791,
+    "experts": 7296,
+    "expert_slots": 4791,
+    "ram_slots": 2505,
+    "dspark": 1,
+    "kv": "int8",
+    "cpu_threads": 16,
+    "cpu_experts": 0,
+    "ctx": 262144,
+    "kv_resident": 65536,
+    "helper_slots": 2505,
+    "helper_allocated_bytes": 37891325952,
+    "helper_payload_bytes": 37891325952,
+    "helper_padding_bytes": 0,
+    "helper_packed": 1,
+    "prefill_chunk": 4096,
+    "vision": "mm3",
+    "image_token": 200025,
+    "image_start": 200029,
+    "image_end": 200030,
+    "vision_patch": 14,
+    "vision_merge": 2,
+    "vision_max_pixels": 451584,
+    "vision_min_pixels": 3136,
+    "conversation_cache": 1,
+    "conversation_slots": 4,
+    "conversation_ram_mib": 24576,
+    "maya_version": "1.1.48",
+    "trained_context": 1048576,
+    "speculation": [
+      "DSpark"
+    ]
+  },
+  "cases": {
+    "40k": {
+      "tokens": 40000,
+      "reused": 39999,
+      "read": 1,
+      "cold": {
+        "cache_n": 0,
+        "prompt_n": 40000,
+        "prompt_ms": 35437.4,
+        "prompt_per_token_ms": 0.886,
+        "prompt_per_second": 1128.8,
+        "predicted_n": 18,
+        "predicted_ms": 522.6,
+        "predicted_per_token_ms": 29.033,
+        "predicted_per_second": 34.4,
+        "draft_n": 17,
+        "draft_n_accepted": 13
+      },
+      "return": {
+        "cache_n": 39999,
+        "prompt_n": 1,
+        "prompt_ms": 832.9,
+        "prompt_per_token_ms": 832.9,
+        "prompt_per_second": 1.2,
+        "predicted_n": 18,
+        "predicted_ms": 417.3,
+        "predicted_per_token_ms": 23.183,
+        "predicted_per_second": 43.1,
+        "draft_n": 21,
+        "draft_n_accepted": 12
+      },
+      "cold_wall_s": 36.0063259601593,
+      "return_wall_s": 1.2890517711639404,
+      "same_answer": true
+    },
+    "80k": {
+      "tokens": 80000,
+      "reused": 79999,
+      "read": 1,
+      "cold": {
+        "cache_n": 220,
+        "prompt_n": 79780,
+        "prompt_ms": 84450.3,
+        "prompt_per_token_ms": 1.059,
+        "prompt_per_second": 944.7,
+        "predicted_n": 18,
+        "predicted_ms": 423.3,
+        "predicted_per_token_ms": 23.517,
+        "predicted_per_second": 42.5,
+        "draft_n": 14,
+        "draft_n_accepted": 13
+      },
+      "return": {
+        "cache_n": 79999,
+        "prompt_n": 1,
+        "prompt_ms": 1063.9,
+        "prompt_per_token_ms": 1063.9,
+        "prompt_per_second": 0.9,
+        "predicted_n": 18,
+        "predicted_ms": 407.4,
+        "predicted_per_token_ms": 22.633,
+        "predicted_per_second": 44.2,
+        "draft_n": 14,
+        "draft_n_accepted": 13
+      },
+      "cold_wall_s": 84.97120308876038,
+      "return_wall_s": 1.5723097324371338,
+      "same_answer": true
+    },
+    "261k": {
+      "tokens": 261001,
+      "reused": 261000,
+      "read": 1,
+      "cold": {
+        "cache_n": 40668,
+        "prompt_n": 220333,
+        "prompt_ms": 545318.7,
+        "prompt_per_token_ms": 2.475,
+        "prompt_per_second": 404.0,
+        "predicted_n": 18,
+        "predicted_ms": 522.4,
+        "predicted_per_token_ms": 29.022,
+        "predicted_per_second": 34.5,
+        "draft_n": 13,
+        "draft_n_accepted": 13
+      },
+      "return": {
+        "cache_n": 261000,
+        "prompt_n": 1,
+        "prompt_ms": 4174.0,
+        "prompt_per_token_ms": 4174.0,
+        "prompt_per_second": 0.2,
+        "predicted_n": 18,
+        "predicted_ms": 381.9,
+        "predicted_per_token_ms": 21.217,
+        "predicted_per_second": 47.1,
+        "draft_n": 13,
+        "draft_n_accepted": 13
+      },
+      "cold_wall_s": 546.1297605037689,
+      "return_wall_s": 4.856458425521851,
+      "same_answer": true
+    }
+  },
+  "changed_prefix_reuse": 161,
+  "original_branch_reuse": 261000,
+  "final_engine": {
+    "model": "MiniMax-M3.1-Flash",
+    "model_label": "MiniMax M3.1 \u00b7 Maya-S",
+    "max_context": 262144,
+    "images": true,
+    "version": "mm3",
+    "backend": "unified",
+    "architecture": "minimax",
+    "engine": "mm3",
+    "engine_kind": "mm3",
+    "experts_vram": 4791,
+    "experts": 7296,
+    "expert_slots": 4791,
+    "ram_slots": 2505,
+    "dspark": 1,
+    "kv": "int8",
+    "cpu_threads": 16,
+    "cpu_experts": 0,
+    "ctx": 262144,
+    "kv_resident": 65536,
+    "helper_slots": 2505,
+    "helper_allocated_bytes": 37891325952,
+    "helper_payload_bytes": 37891325952,
+    "helper_padding_bytes": 0,
+    "helper_packed": 1,
+    "prefill_chunk": 4096,
+    "vision": "mm3",
+    "image_token": 200025,
+    "image_start": 200029,
+    "image_end": 200030,
+    "vision_patch": 14,
+    "vision_merge": 2,
+    "vision_max_pixels": 451584,
+    "vision_min_pixels": 3136,
+    "conversation_cache": 1,
+    "conversation_slots": 4,
+    "conversation_ram_mib": 24576,
+    "maya_version": "1.1.48",
+    "trained_context": 1048576,
+    "speculation": [
+      "DSpark"
+    ]
+  },
+  "long_context_code": {
+    "cache_n": 261018,
+    "prompt_n": 51,
+    "prompt_ms": 6175.8,
+    "prompt_per_token_ms": 121.094,
+    "prompt_per_second": 8.3,
+    "predicted_n": 320,
+    "predicted_ms": 9902.5,
+    "predicted_per_token_ms": 30.945,
+    "predicted_per_second": 32.3,
+    "draft_n": 238,
+    "draft_n_accepted": 189
+  }
+}

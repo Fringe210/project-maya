@@ -11,10 +11,14 @@ class UnifiedLauncher(unittest.TestCase):
   exes={Path(p[2]["exe"]).resolve() for p in profiles};self.assertEqual(exes,{ROOT/"build/maya-backend.exe"})
   for family,path,cfg in profiles:
    args=cfg["args"];self.assertEqual(args[:2],["--family",family]);self.assertEqual(Path(cfg["cwd"]),ROOT)
-   ctx=args[args.index("--max-context")+1];self.assertEqual(ctx,"131072" if family=="minimax" else "262144")
+   ctx=args[args.index("--max-context")+1];self.assertEqual(ctx,"524288" if family=="deepseek" else "262144")
    if family in ("deepseek","minimax"):self.assertEqual(args[args.index("--dspark")+1],"on")
    if family=="deepseek":self.assertEqual(args[args.index("--mmap-experts")+1],"off")
-   if family=="minimax":self.assertEqual(args[args.index("--kv-cache")+1],"int8")
+   if family=="minimax":
+    self.assertEqual(args[args.index("--kv-cache")+1],"int8")
+    self.assertEqual(args[args.index("--kv-resident")+1],"65536")
+    self.assertEqual(cfg["env"]["MAYA_MM3_SLOT_RAM_GB"],"24")
+    self.assertEqual(cfg["env"]["MAYA_MM3_HELPER_PACKED"],"1")
  def test_discovery_migrates_real_legacy_profiles_without_launching_old_engines(self):
   with tempfile.TemporaryDirectory() as d:
    root=Path(d);(root/"maya-ds4.json").write_text(json.dumps({"exe":"build/maya-ds4.exe","args":["--pack","weights"],"model_name":"deepseek-v4.1"}))

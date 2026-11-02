@@ -6,8 +6,8 @@
 // `GEN <max_new> [key=value ...] <id,id,...>` answered by `PP <read> <total> <ms> <tok/s> <reused>` while the prompt
 // is read, `T <id>` lines, `STAT ...` every 8 tokens and `DONE <generated> <prompt> <prompt ms> <decode ms>
 // <stop|length|cancel> 0 0 <reused> <hits> <lookups>` (the decode's routed experts in VRAM / all); `STOP` ends a
-// request early, `QUIT` the engine.  A prompt that shares a start with the state (the last conversation) reads only
-// the rest.  Keys: temperature, top_p, top_k, min_p, seed, penalty_last_n / _repeat / _freq / _present,
+// request early, `QUIT` the engine. Shared live prefixes and exact parked prompt anchors read only the rest.
+// MAYA_MM3_SLOTS / SLOT_RAM_GB bound RAM-only anchors (single-sequence layer split); 0 disables parking.  Keys: temperature, top_p, top_k, min_p, seed, penalty_last_n / _repeat / _freq / _present,
 // think_budget + think_end (a reasoning block still open after that many tokens is closed with think_end).
 // With --vision on, `GENI <max_new> [keys] <file> <ids>` carries the prompt's pictures (the file: see read_pics; each
 // picture's image tokens take its rows); the state is shared only where the same picture sits at the same place.
@@ -313,9 +313,11 @@ void serve_header(mm3::Model& m, bool spec_on, const std::string& kv_fmt) {
     std::printf("INFO engine=mm3 engine_kind=mm3 model=MiniMax-M3.1-Flash experts_vram=%ld experts=%ld "
                 "expert_slots=%ld ram_slots=%ld dspark=%d kv=%s cpu_threads=%d cpu_experts=%ld ctx=%d", st0.resident,
                 st0.experts, st0.resident, st0.pooled, m.draft_block() > 0 && spec_on ? 1 : 0, kv_fmt.c_str(),
-                st0.cpu_threads, st0.experts - st0.resident, m.max_ctx());
+                st0.cpu_threads, st0.experts - st0.resident - st0.helper_slots, m.max_ctx());
     if (st0.kv_ring > 0) std::printf(" kv_resident=%d", st0.kv_ring);   // (KV streaming: a layer's positions in VRAM)
-    std::printf(" helper_slots=%ld helper_allocated_bytes=%llu prefill_chunk=%d", st0.helper_slots, (unsigned long long)st0.helper_allocated_bytes, m.chunk());
+    std::printf(" helper_slots=%ld helper_allocated_bytes=%llu helper_payload_bytes=%llu helper_padding_bytes=%llu helper_packed=%d prefill_chunk=%d",
+        st0.helper_slots, (unsigned long long) st0.helper_allocated_bytes, (unsigned long long) st0.helper_payload_bytes,
+        (unsigned long long) st0.helper_padding_bytes, st0.helper_packed, m.chunk());
     std::printf("\n");
     // the same facts in the engine log (stderr) - the lines above reach the server only - for --report and a look at
     // where the model went, as the run without --serve prints them
@@ -332,7 +334,20 @@ void serve_header(mm3::Model& m, bool spec_on, const std::string& kv_fmt) {
 
 int serve(mm3::Model& m, const std::vector<int>& eos, int chunk, bool spec_on, float conf_floor, float draft_cost,
           const std::string& kv_fmt, const std::string& profile_out) {
+    mm3::PrefixSlots cache;
+    const auto number = [](const char* name, double fallback) {
+        const char* s = mm3::env(name);
+        const double v = s ? std::atof(s) : fallback;
+        return std::isfinite(v) ? std::max(0.0, v) : fallback;
+    };
+    cache.limit = m.prefix_cache_bytes(1) ? (size_t) std::min(64.0, number("MM3_SLOTS", 4)) : 0;
+    cache.cap = (size_t) (std::min(1024.0, number("MM3_SLOT_RAM_GB", 12)) * 1073741824.0);
+    const size_t cache_min = (size_t) std::max(1.0, std::min((double) m.max_ctx(), number("MM3_SLOT_MIN", 1024)));
+    if (!cache.cap) cache.limit = 0;
+    const bool cache_check = number("MM3_SLOT_CHECK", 0) != 0;
     serve_header(m, spec_on, kv_fmt);
+    std::printf("INFO conversation_cache=%d conversation_slots=%zu conversation_ram_mib=%zu\n",
+                cache.limit > 0, cache.limit, cache.cap >> 20);
     std::printf("READY %d stop\n", m.max_ctx());
     std::fflush(stdout);
     std::fprintf(stderr, "maya mm3 serve: GEN <max_new> [keys] <ids>; GENI <max_new> [keys] <file> <ids>; STOP, QUIT\n");
@@ -342,10 +357,7 @@ int serve(mm3::Model& m, const std::vector<int>& eos, int chunk, bool spec_on, f
     Lines in;
     in.start();
     std::vector<int> state;   // the tokens in the cache, positions 0 ..
-    struct Held {
-        long long start;
-        uint64_t hash;
-    };
+    using Held = mm3::PictureKey;
     std::vector<Held> held;   // the pictures in the cache (their first image token's position, their pixels' hash)
     std::vector<float> lg((size_t) m.vocab());
     unsigned long long counter = 0;
@@ -359,6 +371,7 @@ int serve(mm3::Model& m, const std::vector<int>& eos, int chunk, bool spec_on, f
             continue;
         }
         in.stop.store(false);
+        err.clear();
         Req r;
         if (!parse_gen(line, r) || (line.rfind("GENI ", 0) == 0 && r.file.empty())) {
             std::printf("ERR expected: GEN <max_new> [keys] <id,id,...> (GENI: the pictures' file before the ids)\n");
@@ -393,12 +406,41 @@ int serve(mm3::Model& m, const std::vector<int>& eos, int chunk, bool spec_on, f
             if (x.start < (long long) from &&
                 std::none_of(held.begin(), held.end(), [&](const Held& q) { return x.start == q.start && x.hash == q.hash; }))
                 from = (size_t) x.start;
+        std::vector<Held> incoming;
+        for (const Pic& x : pics) incoming.push_back({x.start, x.hash});
+        const char* reuse_source = from ? "live" : "none";
+        const int best = cache.find(r.ids, incoming, from);
+        if (best >= 0) {
+            auto& s = cache.slots[(size_t) best];
+            if (m.prefix_cache_load((int) s.tokens.size(), s.data, err)) {
+                from = s.tokens.size(); state = s.tokens; held = s.pictures;
+                s.used = ++cache.clock;
+                reuse_source = "ram";
+                if (cache_check) {
+                    std::vector<uint8_t> check;
+                    if (!m.prefix_cache_save((int) from, check, err) || check != s.data) {
+                        std::fprintf(stderr, "mm3 cache: exact byte roundtrip FAILED: %s\n", err.c_str());
+                        std::printf("ERR conversation snapshot byte parity failed\nDONE 0 %zu 0 0 cancel 0 0 0 0 0\n", r.ids.size());
+                        std::fflush(stdout); state.clear(); held.clear(); cache.drop((size_t) best); continue;
+                    }
+                    std::fprintf(stderr, "mm3 cache: exact byte roundtrip OK (%zu bytes, KV codes/scales, index and DSpark)\n", check.size());
+                }
+            } else {
+                // A failed device copy may already have changed state: recompute everything.
+                std::fprintf(stderr, "mm3 cache: restore failed (%s); reading from token 0\n", err.c_str());
+                from = 0; state.clear(); held.clear(); cache.drop((size_t) best); reuse_source = "none";
+                err.clear();
+            }
+        }
+        std::fprintf(stderr, "mm3 cache: prompt %zu, reuse %zu, read %zu, source %s, %zu parked\n",
+                     r.ids.size(), from, r.ids.size() - from, reuse_source, cache.slots.size());
         state.resize(from);
         held.clear();
         std::vector<mm3::Model::Image> rows;
         if (!(pics.empty() && std::find(r.ids.begin(), r.ids.end(), m.vision() ? m.vision()->image_token : -1) ==
                                   r.ids.end()) &&
             !picture_rows(m, pics, r.ids, from, rows, err)) {
+            state.clear(); held.clear(); // no live reuse without the image identities
             std::printf("ERR %s\n", err.c_str());
             std::printf("DONE 0 %zu 0.0 0.0 cancel 0 0 0 0 0\n", r.ids.size());
             std::fflush(stdout);
@@ -448,6 +490,35 @@ int serve(mm3::Model& m, const std::vector<int>& eos, int chunk, bool spec_on, f
             if (done < T || (in.stop.load() && !last)) {
                 cancel = true;
                 break;
+            }
+        }
+        // Keep an immutable prompt anchor, before generation can wrap DSpark's rings.
+        // The last prompt token is re-read on restore. The draft ring has 64 rows of
+        // slack beyond its attention window, so its one lookahead row loses no context.
+        const size_t anchor = r.ids.empty() ? 0 : r.ids.size() - 1;
+        if (ok && !cancel && cache.limit && anchor >= cache_min) {
+            std::vector<int> tokens(r.ids.begin(), r.ids.end() - 1);
+            const int existing = cache.find(r.ids, incoming, anchor - 1);
+            if (existing >= 0) cache.slots[(size_t) existing].used = ++cache.clock;
+            else {
+                const size_t bytes = m.prefix_cache_bytes((int) anchor);
+                if (bytes && bytes <= cache.cap) {
+                    // Supersede ancestors only when the replacement fits; retain different branches.
+                    for (size_t i = cache.slots.size(); i-- > 0;)
+                        if (mm3::exact_prefix(cache.slots[i].tokens, cache.slots[i].pictures, r.ids, incoming)) cache.drop(i);
+                    cache.reserve(bytes);
+                    mm3::PrefixSlot s; s.tokens = std::move(tokens); s.pictures = incoming;
+                    const double saved = now();
+                    if (m.prefix_cache_save((int) anchor, s.data, err)) {
+                        s.used = ++cache.clock;
+                        cache.slots.push_back(std::move(s));
+                        std::fprintf(stderr, "mm3 cache: parked %zu tokens, %zu bytes in %.3f s; %zu slots, %zu bytes RAM\n",
+                                     anchor, bytes, now() - saved, cache.slots.size(), cache.bytes());
+                    } else {
+                        std::fprintf(stderr, "mm3 cache: snapshot failed (%s); generation continues\n", err.c_str());
+                        err.clear();
+                    }
+                } else std::fprintf(stderr, "mm3 cache: %zu-byte snapshot exceeds RAM budget; not parked\n", bytes);
             }
         }
         const double t1 = now() * 1e3;
@@ -698,10 +769,7 @@ int serve_multi(mm3::Model& m, const std::vector<int>& eos, int chunk, const std
 #endif
     Lines in;
     in.start();
-    struct Held {
-        long long start;
-        uint64_t hash;
-    };
+    using Held = mm3::PictureKey;
     struct Seq {
         std::vector<int> state;   // the tokens in its cache, positions 0 ..
         std::vector<Held> held;   // the pictures in its cache

@@ -369,6 +369,7 @@ void prefix_restore_tests() {
     for (int kf = 0; kf < 4; ++kf)
         for (int vf = 0; vf < 4; ++vf) prefix_restore_case(kf, vf, 16384, 4096, 4);
     prefix_restore_case(k::kKvI8, k::kKvI8, 131072, 32768, 4);
+    prefix_restore_case(k::kKvI8, k::kKvI8, 262144, 65536, 4);
     // Same attention output before and after restoring the evicted prefix.
     Case c = make_case(12288, 8);
     for (int t = 0; t < c.T; ++t) c.pos[(size_t) t] = 3000 - c.T + t;

@@ -16,9 +16,9 @@ On the validated PC:
 
 | Profile | Weights | Context and preserved options |
 |---|---|---|
-| `maya-ds4.json` | `E:/Maya-data/models/DeepSeek-V4.1-Flash-1017-GGUF/Maya-S/maya-ds4` | 262144, TP1, DSpark on, mmap-experts off |
+| `maya-ds4.json` | `E:/Maya-data/models/DeepSeek-V4.1-Flash-1017-GGUF/Maya-S/maya-ds4` | 524288, TP1, DSpark on, mmap-experts off |
 | `maya-glm.json` | `E:/Maya-glm-data/models/Maya-M/pack` | 262144, expert-cache/prefill auto, KV streaming on, existing expert profile |
-| `maya-minimax.json` | `H:/Maya-data/models/MiniMax-M3.1-Flash-Maya-S/maya-mm3` | 131072, KV int8, DSpark on, KV streaming on, existing expert profile |
+| `maya-minimax.json` | `H:/Maya-data/models/MiniMax-M3.1-Flash-Maya-S/maya-mm3` | 262144, KV int8, 65536 resident, DSpark on, compact HIP pool, 24 GiB conversation cache |
 
 The former GLM checkout's source matched upstream v1.1.27 after newline normalization: its config, expert profile and vision assets were preserved while using the newer common source, rather than replacing the newer engine with that older checkout.
 
@@ -48,9 +48,9 @@ For all-VRAM GLM, the expert bar separately counts NVIDIA and AMD ownership and 
 
 ## Verification artifacts
 
-`bench/results/2026-10-31-unified/` contains real request/response/timing files and model logs. `bench/unified_backend_check.py` verifies architecture, configured context, real 16K document retrieval at start/middle/end, and reuse of the long prefix. `MAYA_BENCH_URL` selects a test port. `bench/mm3_vram_check.py` verifies native resident-expert allocation accounting with an isolated small-context load; production MiniMax remains 128K/int8.
+`bench/results/2026-10-31-unified/` contains real request/response/timing files and model logs. `bench/unified_backend_check.py` verifies architecture, configured context, real 16K document retrieval at start/middle/end, and reuse of the long prefix. `MAYA_BENCH_URL` selects a test port. `bench/mm3_vram_check.py` verifies native resident-expert allocation accounting with an isolated small-context load; the earlier profile was 128K/int8; the current profile is 256K/int8 with 64K resident KV.
 
-MiniMax numerical GPU checks cover prefix restore through all KV formats, actual 128K/int8 transitions, overlapped staging and a missing-fence negative control. The shared-DLL expert checks compare arithmetic and invalid ABI calls. On the full model the staging diagnostic checked 57 MoE layers with maximum absolute error 0; a real 16K prompt measured approximately 1075 new prompt tok/s and retrieved all three codes, followed by a cached continuation. DeepSeek passed the same real-document/cache checks at 262K. These verify allocation and 16K operation; a full 262K document stress test is a separate workload and has not been run.
+MiniMax numerical GPU checks cover prefix restore through all KV formats, actual 128K/int8 transitions, overlapped staging and a missing-fence negative control. The shared-DLL expert checks compare arithmetic and invalid ABI calls. On the full model the staging diagnostic checked 57 MoE layers with maximum absolute error 0; a real 16K prompt measured approximately 1075 new prompt tok/s and retrieved all three codes, followed by a cached continuation. DeepSeek passed the same real-document/cache checks at 262K. These verify allocation and 16K operation; DeepSeek has not had a full 262K document stress test in that campaign; MiniMax now passes the separate 261K test linked below.
 
 Controlled throughput measurements and remaining validation results are recorded in the local result summary. Routing, cache warmth and speculative acceptance affect rates; cold starts and helper bypass are labeled separately.
 
@@ -65,3 +65,8 @@ The load-time verifier retains the strict `1e-5` check for ordinary output compa
 ## GLM deployment measurements
 
 See [GLM CUDA/HIP and MTP](GLM-CUDA-HIP.md) for the NVIDIA-only versus CUDA+HIP comparison, two/three-prediction controls, short-prompt PCIe reduction and the outstanding AMD batched-prefill compute path. All-VRAM refers to routed experts; host embeddings, KV and buffers remain.
+
+
+Exact context reuse across unrelated requests is checked for GLM and MiniMax in [the conversation-cache report](GLM-MINIMAX-CONTEXT-CACHE.md). It documents the distinct cache policies, bounded RAM profiles, byte-level MiniMax validation and 40K real-document results, with the active context limits preserved.
+
+The current MiniMax 256K/64K profile, compact arena and near-full-context measurements are documented in [MiniMax packed 256K](MINIMAX-PACKED-256K.md).

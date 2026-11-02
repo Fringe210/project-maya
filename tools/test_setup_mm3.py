@@ -111,9 +111,11 @@ class Gate(unittest.TestCase):
         self.assertEqual(maya.MM3_MIN_CC, maya.DS4_MIN_CC)
 
     def test_exe_by_platform(self):
-        self.assertEqual(maya.exe_for_target("maya-mm3"), maya.MM3_EXE)
         maya.select_build_backend("cuda")
-        self.assertEqual(maya.MM3_EXE.name, "maya-mm3.exe" if maya.WIN else "maya-mm3")
+        self.assertEqual(maya.exe_for_target("maya-mm3"), maya.BUILD / ("maya-backend.exe" if maya.WIN else "maya-backend"))
+        # HIP keeps its standalone engine; the CUDA launcher selects weights in the common backend.
+        with patch.object(maya, "BUILD", maya.ROOT / "build-hip"):
+            self.assertEqual(maya.exe_for_target("maya-mm3"), maya.MM3_EXE)
 
 
 class Contexts(unittest.TestCase):
@@ -274,8 +276,10 @@ class Config(unittest.TestCase):
 
     def test_again_keeps_what_it_does_not_ask(self):
         old = {"args": ["--pack", "/old", "--max-context", "262144", "--kv-cache", "int8", "--vision", "off"],
-               "reasoning_effort": "high", "sampling": {"temperature": 0.7}, "host": "0.0.0.0"}
+               "reasoning_effort": "high", "sampling": {"temperature": 0.7}, "host": "0.0.0.0",
+               "env": {"MAYA_MM3_SLOTS": "4", "MAYA_MM3_SLOT_RAM_GB": "24"}}
         c = self.write(args(), old)
+        self.assertEqual(c["env"], old["env"])
         a = c["args"]
         self.assertEqual(a[a.index("--kv-cache") + 1], "int8")
         # (pictures: a setup again turns them on - the owner's rule for every model; --no-vision keeps them off)

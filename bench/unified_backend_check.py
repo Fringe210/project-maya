@@ -39,7 +39,8 @@ def main():
  p=argparse.ArgumentParser();p.add_argument('--family',required=True,choices=['deepseek','glm','minimax']);p.add_argument('--label',required=True)
  p.add_argument('--runs',type=int,default=4);p.add_argument('--bypass',type=int,choices=[0,1]);p.add_argument('--document',action='store_true');p.add_argument('--parity',action='store_true');p.add_argument('--failure',action='store_true');p.add_argument('--vram-only',action='store_true');p.add_argument('--spec',type=int,choices=[1,3,4])
  a=p.parse_args();m=api('/metrics');e=m['engine'];assert e.get('backend')=='unified' and e.get('architecture')==a.family,e
- assert e['max_context']==(131072 if a.family=='minimax' else 262144),e
+ cfg=json.loads((ROOT/('maya-ds4.json' if a.family=='deepseek' else f'maya-{a.family}.json')).read_text(encoding='utf-8-sig'))
+ assert e['max_context']==int(cfg['args'][cfg['args'].index('--max-context')+1]),e
  if a.family=='minimax':assert e['kv']=='int8' and e['prefill_chunk']==4096,e
  if a.family in ('minimax','deepseek'):assert e['dspark'],e
  if a.vram_only:
