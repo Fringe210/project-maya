@@ -7802,10 +7802,23 @@ struct Model::Impl {
         const bool huge = copy_hugetlb_on(huge_env, pool, huge_need);
         const uint64_t avail = ram_room();
         // (Windows: the copies are committed memory, within what its commit still has beside the other programs' margin)
-        const double can = std::min(avail == ~uint64_t{0} ? 1e300
-                                                          : std::max(0.0, (double) avail - (double) kRamMargin) +
-                                                                (huge ? (double) pool : 0.0),
-                                    commit_room());
+        const double physical_budget = avail == ~uint64_t{0} ? 1e300
+            : std::max(0.0, (double) avail - (double) kRamMargin) + (huge ? (double) pool : 0.0);
+        const double commit_budget = commit_room();
+        const double can = std::min(physical_budget, commit_budget);
+        // Observe both limits at the allocation decision; reporting only their minimum hides
+        // whether freeing physical RAM or increasing Windows commit headroom could help.
+        const os::Commit commit_sample = os::commit();
+        const auto known_gb = [](double bytes) { return bytes >= 1e300 ? -1.0 : bytes / 1e9; };
+        std::fprintf(stderr, "ds4: expert copy budget: need=%.3f GB ram_room=%.3f GB ram_margin=%.3f GB "
+                             "physical_budget=%.3f GB commit_budget=%.3f GB usable=%.3f GB limiter=%s "
+                             "commit_limit=%.3f GB commit_available=%.3f GB helper_pending=%.3f GB\n",
+                     all / 1e9, avail == ~uint64_t{0} ? -1.0 : (double) avail / 1e9,
+                     (double) kRamMargin / 1e9, known_gb(physical_budget), known_gb(commit_budget), known_gb(can),
+                     physical_budget < commit_budget ? "physical" : commit_budget < physical_budget ? "commit" : "equal",
+                     commit_sample.limit == ~uint64_t{0} ? -1.0 : (double) commit_sample.limit / 1e9,
+                     commit_sample.avail == ~uint64_t{0} ? -1.0 : (double) commit_sample.avail / 1e9,
+                     (double) helper_pending / 1e9);
         // (auto: all or none - a part copied cost decode speed on 64 GB and on 32 GB of RAM, but every expert in RAM
         // keeps the SSD out of the decode: #339's reports)
         // (auto beside an integrated GPU: none - its own allocations, the experts it holds and what it allocates
@@ -7984,6 +7997,23 @@ struct Model::Impl {
             return false;
         }
         for (const Job& j : jobs) L[(size_t) j.layer].ram[(size_t) j.e] = j.slot;
+        // HIP-owned experts retain host fallback copies. Distinguish them from experts
+        // with no helper owner before interpreting file backing as active CPU/disk work.
+        size_t host_counts[2][2]{};
+        uint64_t host_bytes[2][2]{};
+        for (const auto& h : hot) {
+            const Layer& l = L[(size_t) h.first];
+            const int owned = helper_owned(l, h.second) ? 1 : 0;
+            const int copied = l.ram[(size_t) h.second] >= 0 ? 1 : 0;
+            ++host_counts[owned][copied];
+            host_bytes[owned][copied] += l.blob;
+        }
+        std::fprintf(stderr, "ds4: expert host backing: cpu_ram=%zu/%.3f GB cpu_file=%zu/%.3f GB "
+                             "helper_ram=%zu/%.3f GB helper_file=%zu/%.3f GB\n",
+                     host_counts[0][1], (double) host_bytes[0][1] / 1e9,
+                     host_counts[0][0], (double) host_bytes[0][0] / 1e9,
+                     host_counts[1][1], (double) host_bytes[1][1] / 1e9,
+                     host_counts[1][0], (double) host_bytes[1][0] / 1e9);
         if (direct_copy)
             std::fprintf(stderr, "ds4: expert copy I/O: %.3f GB direct, %.3f GB buffered fallback\n",
                          (double) direct_copy_bytes.load() / 1e9, (double) buffered_fallback_bytes.load() / 1e9);

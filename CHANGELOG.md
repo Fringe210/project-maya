@@ -12,6 +12,8 @@ only what changed and starts; the model is not downloaded again.
 
 ## Unreleased — single backend and CUDA + HIP experts
 
+- **DeepSeek memory diagnostics:** report physical RAM and Windows commit budgets separately at expert-copy allocation, plus CPU-only versus AMD-owned host backing. A 512K run identifies commit headroom as the cause of residual file-backed experts, without changing copy policy or profiles. See [measurements and remedies](docs/DS4-MEMORY-BUDGET.md).
+
 - **v1.1.50 integration:** preserve the common CUDA backend, all three HIP helper paths and exact conversation caches. DeepSeek advertises logit-bias support before a single READY block, emitted after the effective conversation-cache policy. Linux HIP setup fixtures now also run on Windows.
 
 - **MiniMax AMD pool:** replace largest-expert fixed strides with aligned per-expert offsets, retaining the old C ABI and adding exact upload checks plus payload/padding counters. The reference PC now holds 2505 experts on W7800 in 35.29 GiB with zero padding, alongside 4791 on NVIDIA; all 7296 routed experts have GPU owners. Host copies remain for prefill and fallback.
