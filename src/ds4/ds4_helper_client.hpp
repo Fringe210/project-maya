@@ -19,6 +19,8 @@ struct Ds4HipHelper {
     decltype(&ds4h_open) open = nullptr;
     decltype(&ds4h_layout) layout = nullptr;
     decltype(&ds4h_reserve) reserve = nullptr;
+    decltype(&ds4h_reserve_packed) reserve_packed = nullptr;
+    decltype(&ds4h_get_memory) get_memory = nullptr;
     decltype(&ds4h_upload) upload = nullptr;
     decltype(&ds4h_submit) submit = nullptr;
     decltype(&ds4h_wait) wait = nullptr;
@@ -37,6 +39,8 @@ struct Ds4HipHelper {
         open=(decltype(open))GetProcAddress(mod,"ds4h_open");
         layout=(decltype(layout))GetProcAddress(mod,"ds4h_layout");
         reserve=(decltype(reserve))GetProcAddress(mod,"ds4h_reserve");
+        reserve_packed=(decltype(reserve_packed))GetProcAddress(mod,"ds4h_reserve_packed");
+        get_memory=(decltype(get_memory))GetProcAddress(mod,"ds4h_get_memory");
         upload=(decltype(upload))GetProcAddress(mod,"ds4h_upload");
         submit=(decltype(submit))GetProcAddress(mod,"ds4h_submit");
         wait=(decltype(wait))GetProcAddress(mod,"ds4h_wait");

@@ -27,7 +27,8 @@ them as you chat. It measures your GPUs, CPU, RAM and SSD and tunes itself to th
   RTX PRO 6000, 30+ on a single RTX 5090. [Real numbers from real users](#how-fast-is-it).
 - **NVIDIA and AMD together:** one CUDA primary and an AMD HIP expert helper serve the same model through one
   process. Validated pairing: **RTX PRO 6000 Blackwell 96 GB + Radeon PRO W7800 48 GB**. See
-  [One CUDA backend](#one-cuda-backend-three-model-families-windows).
+  [One CUDA backend](#one-cuda-backend-three-model-families-windows). DeepSeek's [compact AMD pool](docs/DS4-PACKED-HELPER.md)
+  preserves expert ownership while removing fixed-stride padding.
 - **Close to the original:** Maya's own quants of GLM-5.3-Flash keep 97.7-99.2% of the FP8 model's zero-shot
   accuracy; DeepSeek V4.1 · Maya-S picks the same next token as the original 92.6% of the time, MiniMax M3.1 · Maya-S
   87.6% (the average over its categories).

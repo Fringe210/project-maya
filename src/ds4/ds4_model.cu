@@ -1529,6 +1529,9 @@ struct Model::Impl {
     std::atomic<bool> hip_active{true};
     int hip_device = 0;
     size_t hip_stride = 0;
+    size_t hip_payload = 0;
+    bool hip_packed = false;
+    uint64_t hip_selection_hash = 0;
     std::unique_ptr<Ds4HipHelper> hip;
     bool helper_shared = false;   // opt-in: helper GPU also owns DSpark blocks, never target layers
     size_t helper_cap = 0, helper_used = 0;
@@ -7490,6 +7493,12 @@ struct Model::Impl {
         }
         if (helper_n > 0) {   // (the helper's pool filled: what it takes of the host RAM is ram_avail's to see now)
             helper_pending = 0;
+            if (hip_helper && hip->get_memory) {
+                ds4h_memory memory{}; hip->get_memory(hip->h, &memory);
+                if (memory.payload_bytes != hip_payload || memory.allocated_bytes != helper_used) {
+                    err = "HIP helper: uploaded payload does not match selected experts"; return false;
+                }
+            }
             const uint64_t av = ram_avail();
             std::fprintf(stderr, "ds4: helper CUDA%d: %d experts in (%.1f GB); RAM available %.1f GB\n", helper_id,
                          helper_n, helper_prof / 1e9, av == ~uint64_t{0} ? 0.0 : av / 1e9);
@@ -13489,17 +13498,50 @@ struct Model::Impl {
         const int slots=(int)std::min(candidates.size(),helper_cap/hip_stride);
         if (!slots) { err="HIP helper: pool too small"; return false; }
         char why[512]{};
-        if(hip->reserve(hip->h,slots,hip_stride,why,sizeof why)) {err=why;return false;}
-        for(int i=0;i<slots;++i) {
-            Layer& l=L[(size_t)candidates[i].l];
-            if(l.hip_slot.empty()) {
-                l.hip_slot.assign((size_t)l.n_exp,-1);
-                if(hip->layout(hip->h,l.il,&l.lay,sizeof l.lay,l.blob,why,sizeof why)) {err=why;return false;}
+        const char* packed_env = ds4_env("DS4_HIP_HELPER_PACKED");
+        hip_packed = hip->reserve_packed && (!packed_env || std::atoi(packed_env) != 0);
+        std::vector<ds4h_slot> desc;
+        desc.reserve((size_t) slots);
+        size_t packed_bytes = 0;
+        hip_payload = 0;
+        hip_selection_hash = 14695981039346656037ull;
+        // Preserve the exact legacy count and ranking. Spend the padding saving on
+        // memory headroom, rather than silently filling it with additional experts.
+        for (int i = 0; i < slots; ++i) {
+            Layer& l = L[(size_t) candidates[i].l];
+            if (l.hip_slot.empty()) {
+                l.hip_slot.assign((size_t) l.n_exp, -1);
+                if (hip->layout(hip->h, l.il, &l.lay, sizeof l.lay, l.blob, why, sizeof why)) { err = why; return false; }
             }
-            l.hip_slot[(size_t)candidates[i].e]=i;
+            desc.push_back({(uint64_t) l.blob, l.il, 0});
+            packed_bytes += align256(l.blob);
+            hip_payload += l.blob;
+            for (uint64_t value : {(uint64_t) l.il, (uint64_t) candidates[i].e, (uint64_t) l.blob})
+                for (int byte = 0; byte < 8; ++byte) {
+                    hip_selection_hash ^= (value >> (byte * 8)) & 255;
+                    hip_selection_hash *= 1099511628211ull;
+                }
         }
-        helper_n=slots; helper_used=helper_prof=(size_t)slots*hip_stride; st.helper_held=slots;
-        std::fprintf(stderr,"ds4: HIP helper device %d: %d static experts, %.3f GB arena, stride %zu; RAM fallback retained\n",hip_device,slots,helper_used/1e9,hip_stride);
+        const int reserve_rc = hip_packed
+            ? hip->reserve_packed(hip->h, slots, desc.data(), why, sizeof why)
+            : hip->reserve(hip->h, slots, hip_stride, why, sizeof why);
+        if (reserve_rc) { err = why; return false; }
+        helper_n = slots;
+        helper_used = hip_packed ? packed_bytes : (size_t) slots * hip_stride;
+        helper_prof = hip_payload;
+        if (hip->get_memory) {
+            ds4h_memory memory{}; hip->get_memory(hip->h, &memory);
+            if (memory.allocated_bytes != helper_used || memory.slots != slots || memory.packed != hip_packed) {
+                err = "HIP helper: allocated arena does not match selected experts"; return false;
+            }
+        }
+        for (int i = 0; i < slots; ++i)
+            L[(size_t) candidates[i].l].hip_slot[(size_t) candidates[i].e] = i;
+        st.helper_held = slots;
+        std::fprintf(stderr, "ds4: HIP helper device %d: %d static experts, %.3f GB arena, %.3f GB payload, "
+                             "%.3f GB padding, packed=%d selection=%016llx; RAM fallback retained\n",
+                     hip_device, slots, helper_used / 1e9, hip_payload / 1e9, (helper_used - hip_payload) / 1e9,
+                     hip_packed ? 1 : 0, (unsigned long long) hip_selection_hash);
         return true;
     }
     bool hip_upload(const Layer& l,int e,const void* blob) {
@@ -21303,6 +21345,13 @@ struct Model::Impl {
             std::snprintf(b, sizeof b, "INFO helper_gpu=%d helper_slots=%d helper_allocated_bytes=%zu",
                           helper_id, helper_n, helper_bytes);
             v.push_back(b);
+            if (hip_helper) {
+                std::snprintf(b, sizeof b, "INFO helper_payload_bytes=%zu helper_padding_bytes=%zu helper_packed=%d "
+                                          "helper_selection=%016llx",
+                              hip_payload, helper_used - hip_payload, hip_packed ? 1 : 0,
+                              (unsigned long long) hip_selection_hash);
+                v.push_back(b);
+            }
         }
         bool helper_reported = false;
         // the Monitor's map of each GPU (serve/gpu_map.py, the GLM engine's VRAM lines): what each part holds on the

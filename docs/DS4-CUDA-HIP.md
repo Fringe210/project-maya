@@ -13,16 +13,16 @@ Set these entries in the configuration's `env`:
 ```json
 {
   "DS4_HIP_HELPER": "0",
-  "DS4_HIP_HELPER_GB": "32",
+  "DS4_HIP_HELPER_GB": "40",
   "DS4_HIP_HELPER_BIN": "C:/Program Files/AMD/ROCm/6.4/bin",
   "DS4_HELPER_CHECK": "1",
   "DS4_HIP_HELPER_DLL": "E:/project-maya/build/maya-hhelper.dll"
 }
 ```
 
-`0` selects HIP device 0 and enables it; `off` disables loading the helper. This index is independent of the CUDA device index. The DLL dependency directory must match the HIP SDK used to build it. Pool GB are decimal, as for the existing DS4 helper. Fixed-stride slots use the largest selected expert blob, including padding.
+`0` selects HIP device 0 and enables it; `off` disables loading the helper. This index is independent of the CUDA device index. The DLL dependency directory must match the HIP SDK used to build it. Pool GB are decimal, as for the existing DS4 helper. The default compact arena uses aligned per-expert offsets while retaining the legacy-equivalent selection count. Set `DS4_HIP_HELPER_PACKED=0` for fixed-stride slots. See [packed-pool validation](DS4-PACKED-HELPER.md).
 
-Keep `--max-context 262144 --tp 1 --dspark on --mmap-experts off`. The helper retains host copies for CPU fallback. It does not promise to free host RAM. The loader rejects incompatible combinations and ABI versions. A worker error disables the helper and routes its work back to retained CPU weights. Worker threads finish before buffers and the DLL are released.
+The current local profile keeps `--max-context 524288 --tp 1 --dspark on --mmap-experts off`. The helper retains host copies for CPU fallback. It does not promise to free host RAM. The loader rejects incompatible combinations and ABI versions. A worker error disables the helper and routes its work back to retained CPU weights. Worker threads finish before buffers and the DLL are released.
 
 `DS4_HELPER_CHECK=1` enables uploaded-byte readback, real-format CPU comparisons, grouped versus per-token equality and fallback checks at load. Check the log for `helper check passed` and telemetry `helper_dead=0`, `helper_fb=0` during normal runs. Some legacy check log labels say `CUDA-1` for the separate HIP backend; the preceding `HIP helper device 0` line identifies the actual backend.
 

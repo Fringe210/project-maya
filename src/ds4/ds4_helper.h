@@ -47,6 +47,15 @@ DS4H_API int ds4h_open(int device, int n_embd, int n_ff, ds4h** out, char* err, 
 DS4H_API int ds4h_layout(ds4h* h, int layer, const void* layout_bytes, size_t bytes, size_t stride, char* err, size_t cap);
 // Allocates `slots` expert blobs of `stride` bytes each in the helper's VRAM (one arena).
 DS4H_API int ds4h_reserve(ds4h* h, int slots, size_t stride, char* err, size_t cap);
+// Packed arena extension: exact layer/size binding per slot, 256-byte aligned offsets.
+// The original fixed-stride reserve and version-1 entry points remain supported.
+typedef struct ds4h_slot { uint64_t bytes; int32_t layer; uint32_t reserved; } ds4h_slot;
+typedef struct ds4h_memory {
+    uint64_t allocated_bytes, payload_bytes, padding_bytes;
+    int32_t slots, packed;
+} ds4h_memory;
+DS4H_API int ds4h_reserve_packed(ds4h* h, int slots, const ds4h_slot* desc, char* err, size_t cap);
+DS4H_API void ds4h_get_memory(ds4h* h, ds4h_memory* out);
 // Copies one assembled expert blob (the primary's pinned-pool format) into slot `slot`, laid out as `layer`'s.
 DS4H_API int ds4h_upload(ds4h* h, int slot, int layer, const void* blob, size_t bytes, char* err, size_t cap);
 // Runs one decode round: every layer in order on the helper's stream, one device sync at the end.

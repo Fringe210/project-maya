@@ -36,6 +36,8 @@ The residual file-backed experts are genuine CPU-only experts, not just AMD fall
 
 ## Ways to eliminate the shortfall
 
+The subsequent [packed AMD pool implementation](DS4-PACKED-HELPER.md) recovered 4.894 GB and successfully copied all host experts into RAM on this PC. The diagnostic measurements below remain the earlier fixed-stride baseline.
+
 1. Add 16 GiB of actually allocated page-file capacity, while keeping the existing memory reserves. This increases the commit ceiling; the physical RAM budget already covers the required copies. Raising only the configured maximum may not be counted by the engine's conservative page-file growth estimate: C: currently has less than the 10% free-space reserve used by commit_growth. After any Windows change, verify all experts copied, cpu_file=0, sufficient physical headroom and no paging pressure under the real workload.
 2. Compact the DS4 AMD arena. It currently allocates 39.999 GB for about 35.109 GB of actual expert payload, leaving about 4.89 GB of fixed-stride padding. The existing MiniMax packed-pool pattern could remove that padding without reducing the number of AMD experts. Whether the full allocation saving translates into commit headroom must be measured. This requires a DS4 helper/client ABI extension and numerical tests; it was not implemented by this diagnostic change.
 3. DS4_REQUIRE_ALL_RAM=1 makes missing host allocations fatal instead of silently retaining file backing. It validates the guarantee but does not supply memory or prevent Windows paging of ordinary RAM.

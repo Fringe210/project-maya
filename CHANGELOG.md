@@ -12,6 +12,8 @@ only what changed and starts; the model is not downloaded again.
 
 ## Unreleased — single backend and CUDA + HIP experts
 
+- **DeepSeek compact AMD pool:** add per-expert aligned offsets and optional packed-reserve/memory-query ABI exports while preserving the old client call order and exact expert selection. On the reference PC, the same 3168 experts use 35.104 instead of 39.999 GB; all 8169 host expert copies now fit in RAM at 512K with DSpark and mmap-experts off. Packed/legacy numerical parity, byte checks, MiniMax regressions and real 16K/cache controls pass. See [validation and limits](docs/DS4-PACKED-HELPER.md).
+
 - **DeepSeek memory diagnostics:** report physical RAM and Windows commit budgets separately at expert-copy allocation, plus CPU-only versus AMD-owned host backing. A 512K run identifies commit headroom as the cause of residual file-backed experts, without changing copy policy or profiles. See [measurements and remedies](docs/DS4-MEMORY-BUDGET.md).
 
 - **v1.1.50 integration:** preserve the common CUDA backend, all three HIP helper paths and exact conversation caches. DeepSeek advertises logit-bias support before a single READY block, emitted after the effective conversation-cache policy. Linux HIP setup fixtures now also run on Windows.
