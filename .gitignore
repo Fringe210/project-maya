@@ -60,3 +60,9 @@ build-vision.bat
 
 # Private serialized DeepSeek conversations (generated locally).
 /data/ds4-slots/
+
+# OpenCode V1->V2 migration notes and SQLite helpers (this machine only).
+/migration.md
+/tools/snapshot_db.py
+/tools/db_check.py
+/tools/verify_v1v2.py
