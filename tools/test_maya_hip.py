@@ -33,6 +33,7 @@ class HipSetupTests(unittest.TestCase):
             patch.object(maya, "EXE", self.root / "build/maya"),
             patch.object(maya, "STAMP", self.root / "build/MAYA-BUILD.json"),
             patch.object(maya, "WIN", False),
+            patch.object(sys, "platform", "linux"),
             patch.dict(os.environ, {"ROCM_PATH": str(self.rocm)}),
             patch.object(maya.S, "amd_gpus", return_value=self.gpus),
             patch.object(maya.S, "gpus", side_effect=AssertionError("HIP must not query NVIDIA")),
@@ -52,6 +53,18 @@ class HipSetupTests(unittest.TestCase):
         pc = maya.check_pc(self.a)
         self.assertEqual(pc["gpus"], [self.gpus[1]])
         self.assertEqual(maya.EXE, self.root / "build-hip/maya")
+
+    def test_versioned_llvm_slot_is_found(self) -> None:
+        """Gentoo's versioned LLVM slots count as ROCm's compiler."""
+        # Gentoo keeps each LLVM version in its own slot: <root>/lib/llvm/22/bin/clang++
+        (self.rocm / "llvm/bin/clang++").unlink()
+        for v in ("18", "22"):
+            slot = self.rocm / f"lib/llvm/{v}/bin/clang++"
+            slot.parent.mkdir(parents=True, exist_ok=True)
+            slot.touch()
+        self.assertEqual(maya.hip_clang(self.rocm), self.rocm / "lib/llvm/22/bin/clang++")
+        pc = maya.check_pc(self.a)
+        self.assertEqual(pc["rocm"], str(self.rocm.resolve()))
 
     def test_rdna2_is_experimental_and_compiled_only_when_chosen(self):
         pc = maya.check_pc(self.a)      # the RX 7900 XT: its own architecture only (#255)
@@ -349,7 +362,8 @@ class HipSetupTests(unittest.TestCase):
         self.assertNotIn("CUDA_DEVICE_ORDER", env)
         self.assertEqual(env["STRATA_GLM_PREFILL_SUB"], "512")
         self.assertEqual(env["STRATA_GLM_RAM_GB"], "60")
-        self.assertEqual(env["LD_LIBRARY_PATH"], str(self.rocm / "lib"))
+        lib_var = "PATH" if os.name == "nt" else "LD_LIBRARY_PATH"
+        self.assertEqual(env[lib_var].split(os.pathsep)[0], str(self.rocm / "lib"))
         self.assertIn("GPUs: R9700 32 GB, RX 7900 XT 20 GB", text)
         self.assertIn("GPUs [1, 0]", text)
 
