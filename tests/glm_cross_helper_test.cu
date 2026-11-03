@@ -32,7 +32,7 @@ int main(int argc,char** argv)try{
  auto hc=[&](int code){if(code)throw std::runtime_error(err);};hc(open(0,E,FF,&h,err,sizeof err));
  glmh* invalid=nullptr;int rejects=0;
  if(open(0,33,FF,&invalid,err,sizeof err)==0)throw std::runtime_error("accepted invalid geometry");++rejects;
- const size_t maxblob=8978432;hc(reserve(h,288*45,maxblob*288,err,sizeof err));
+ const size_t maxblob=8978432;hc(reserve(h,288*45,maxblob*300,err,sizeof err));
  std::vector<float>x(E),actual(E),reference(E),downref(E);uint32_t rng=47;for(auto& v:x){rng=rng*1664525u+1013904223u;v=float(int((rng>>8)%101)-50)*.01f;}
  void *blobs=nullptr,*xq=nullptr,*hq=nullptr;float *dx=nullptr,*dout=nullptr;gf::MoeDev plan;
  ck(cudaMalloc(&blobs,K*maxblob));ck(cudaMalloc(&xq,E/32*36));ck(cudaMalloc(&hq,K*FF/32*36));ck(cudaMalloc((void**)&dx,E*4));ck(cudaMalloc((void**)&dout,E*4));
@@ -49,7 +49,17 @@ int main(int argc,char** argv)try{
   std::ifstream files[3];for(int j=0;j<3;++j)files[j].open(l.shard[j],std::ios::binary);
   size_t gu=E*FF/256*82,dn=l.bytes-2*gu;std::vector<unsigned char> blob(l.bytes);
   int count=l.il==28?288:4;
-  for(int e=0;e<count;++e){for(int j=0;j<3;++j){size_t n=j==2?dn:gu;files[j].seekg(l.off[j]+uint64_t(e)*n);files[j].read((char*)blob.data()+(j==0?0:j==1?gu:2*gu),n);if(!files[j])throw std::runtime_error("short expert read");}hc(upload(h,l.il*288+e,blob.data(),l.bytes,l.bytes,err,sizeof err));
+  for(int e=0;e<count;++e){for(int j=0;j<3;++j){size_t n=j==2?dn:gu;files[j].seekg(l.off[j]+uint64_t(e)*n);files[j].read((char*)blob.data()+(j==0?0:j==1?gu:2*gu),n);if(!files[j])throw std::runtime_error("short expert read");}
+   // Exercise the same portable CUDA-pinned endpoint used by startup staging.
+   // HIP must use its own DMA buffer in both directions across the runtime ABI.
+   if(cases==0&&e==0){
+    void* pinned=nullptr;ck(cudaHostAlloc(&pinned,l.bytes,cudaHostAllocPortable));
+    std::memcpy(pinned,blob.data(),l.bytes);hc(upload(h,0,pinned,l.bytes,l.bytes,err,sizeof err));
+    std::memset(pinned,0,l.bytes);hc(read_bytes(h,0,0,l.bytes,pinned,err,sizeof err));
+    if(std::memcmp(pinned,blob.data(),l.bytes))throw std::runtime_error("CUDA-pinned expert round trip differs");
+    ck(cudaFreeHost(pinned));
+   }
+   hc(upload(h,l.il*288+e,blob.data(),l.bytes,l.bytes,err,sizeof err));
    std::vector<unsigned char> back(l.bytes);hc(read_bytes(h,l.il*288+e,0,l.bytes,back.data(),err,sizeof err));if(back!=blob)throw std::runtime_error("GPU backing expert bytes differ");
    hc(read_bytes(h,l.il*288+e,4096,4096,back.data(),err,sizeof err));if(std::memcmp(back.data(),blob.data()+4096,4096))throw std::runtime_error("partial GPU backing read differs");
    ck(cudaMemcpy((char*)blobs+(e%K)*maxblob,blob.data(),l.bytes,cudaMemcpyHostToDevice));if(e%K!=K-1)continue;

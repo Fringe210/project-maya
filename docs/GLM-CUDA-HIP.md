@@ -103,3 +103,6 @@ Raw evidence is in `bench/results/2026-10-31-unified/summary.json`. Full 262K st
 
 
 Exact context reuse across unrelated requests is checked for GLM and MiniMax in [the conversation-cache report](GLM-MINIMAX-CONTEXT-CACHE.md). It documents the distinct cache policies, bounded RAM profiles, byte-level MiniMax validation and 40K real-document results, with the active context limits preserved.
+
+
+The v1.1.52 primary CUDA graph comparison at 262K/no-MTP measured an observed 7–8% decode improvement with the W7800 active, with unchanged 16K prefill. [Method, numerical controls, upload-check incident and limits](GLM-CUDA-GRAPHS.md).

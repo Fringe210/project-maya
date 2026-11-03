@@ -1,0 +1,54 @@
+{
+  "upstream": "3c935e411cd6625a9af0f292dd0af52598e866d8",
+  "version": "1.1.52",
+  "hardware": "RTX PRO 6000 Blackwell 96 GB + Radeon PRO W7800 48 GB",
+  "model": "GLM Maya-M",
+  "context": 262144,
+  "mtp": false,
+  "all_unique_routed_experts_gpu_owned": 12096,
+  "native_component_tests": [
+    {
+      "name": "glm-graph-cache",
+      "exit": 0,
+      "seconds": 0.186
+    },
+    {
+      "name": "glm-cross-helper",
+      "exit": 0,
+      "seconds": 9.213
+    },
+    {
+      "name": "glm-ffn",
+      "exit": 0,
+      "seconds": 0.147
+    },
+    {
+      "name": "glm-dsa",
+      "exit": 0,
+      "seconds": 0.154
+    },
+    {
+      "name": "glm-kv-stream",
+      "exit": 0,
+      "seconds": 1.663
+    }
+  ],
+  "final_component_recheck": {
+    "name": "glm-cross-helper-final",
+    "exit": 0,
+    "seconds": 11.171
+  },
+  "controlled_full_vocabulary_bitwise_comparisons": 192,
+  "controlled_mixed_plan_steps": 48,
+  "controlled_hip_expert_computations": 24817,
+  "frozen_placement_control": {
+    "hip_tail_cache": 0,
+    "pool_gib": 84.0,
+    "context": 262144,
+    "kv_resident": 32768
+  },
+  "production_profiles_unchanged": true,
+  "model_left_stopped": true,
+  "startup_upload_issue": "Initial native loads reported byte mismatches. The final immutable checker passed two performance loads and the numerical load; the original intermittent cause remains unidentified. Checks were never disabled.",
+  "other_validation": "Full Python suite interrupted by user, not passed. DS4/MiniMax runtime tests not resumed in GLM-only scope."
+}

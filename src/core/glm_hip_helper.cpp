@@ -7,6 +7,7 @@
 #include <cstring>
 #include <vector>
 #include <cmath>
+#include <string>
 namespace gf=strata::kernels::glmf;
 struct glmh {
  int device,dim,ff; cudaStream_t stream=nullptr;
@@ -21,6 +22,16 @@ struct glmh {
 };
 static int fail(char* err,size_t cap,const char* text){if(err&&cap)std::snprintf(err,cap,"%s",text);return 1;}
 static bool ck(cudaError_t e,char* err,size_t cap){if(e==cudaSuccess)return true;fail(err,cap,cudaGetErrorString(e));return false;}
+// HIP owns every host DMA endpoint. A caller may pass CUDA-pinned memory;
+// that buffer is accessed by the CPU only, never registered or DMA'd by HIP.
+static bool transfer_room(glmh* h,size_t bytes,char* err,size_t cap){
+ if(bytes<=h->transfer_bytes)return true;
+ if(h->transfer_pin)cudaFreeHost(h->transfer_pin);
+ h->transfer_pin=nullptr;h->transfer_bytes=0;
+ const size_t n=(bytes+4095)&~size_t(4095);
+ if(!ck(cudaHostAlloc(&h->transfer_pin,n,cudaHostAllocDefault),err,cap))return false;
+ h->transfer_bytes=n;return true;
+}
 int glmh_version(){return 1;}
 int glmh_open(int device,int dim,int ff,glmh** out,char* err,size_t cap){
  if(!out||dim<=0||dim>4096||dim%32||ff<=0||ff%32)return fail(err,cap,"GLM HIP: unsupported geometry");
@@ -53,9 +64,41 @@ int glmh_reserve(glmh* h,int keys,size_t bytes,char* err,size_t cap){
 }
 int glmh_upload(glmh* h,int key,const void* blob,size_t bytes,size_t stride,char* err,size_t cap){
  if(!h||!h->pool||!blob||key<0||(size_t)key>=h->slots.size()||!bytes||bytes>stride||h->used>h->capacity||stride>h->capacity-h->used||h->slots[key].bytes)return fail(err,cap,"GLM HIP: invalid upload");
- if(!ck(cudaSetDevice(h->device),err,cap)||!ck(cudaMemcpy(h->pool+h->used,blob,bytes,cudaMemcpyHostToDevice),err,cap))return 1;
- if(std::getenv("STRATA_GLM_HELPER_CHECK")){
-  std::vector<unsigned char> back(bytes);if(!ck(cudaMemcpy(back.data(),h->pool+h->used,bytes,cudaMemcpyDeviceToHost),err,cap)||std::memcmp(back.data(),blob,bytes))return fail(err,cap,"GLM HIP: byte readback mismatch");
+ if(!ck(cudaSetDevice(h->device),err,cap)||!transfer_room(h,bytes,err,cap))return 1;
+ // Keep a CPU-owned immutable reference while checking: caller-owned staging
+ // must not change while a transfer is in progress.
+ const bool checking=std::getenv("STRATA_GLM_HELPER_CHECK")!=nullptr;
+ std::vector<unsigned char> reference;
+ if(checking)reference.assign((const unsigned char*)blob,(const unsigned char*)blob+bytes);
+ const void* source=checking?reference.data():blob;
+ std::memcpy(h->transfer_pin,source,bytes);
+ if(!ck(cudaMemcpyAsync(h->pool+h->used,h->transfer_pin,bytes,cudaMemcpyHostToDevice,h->stream),err,cap)||
+    !ck(cudaStreamSynchronize(h->stream),err,cap))return 1;
+ if(checking){
+  if(!ck(cudaMemcpyAsync(h->transfer_pin,h->pool+h->used,bytes,cudaMemcpyDeviceToHost,h->stream),err,cap)||
+     !ck(cudaStreamSynchronize(h->stream),err,cap))return 1;
+  const auto* back=(const unsigned char*)h->transfer_pin;
+  size_t differences=0,at=0,source_changes=0;
+  for(size_t i=0;i<bytes;++i){
+   if(back[i]!=reference[i]){if(differences==0)at=i;++differences;}
+   if(((const unsigned char*)blob)[i]!=reference[i])++source_changes;
+  }
+  if(differences||source_changes){
+   const unsigned first=back[at];
+   if(!ck(cudaMemcpyAsync(h->transfer_pin,h->pool+h->used,bytes,cudaMemcpyDeviceToHost,h->stream),err,cap)||
+      !ck(cudaStreamSynchronize(h->stream),err,cap))return 1;
+   size_t repeated=0;for(size_t i=0;i<bytes;++i)repeated+=back[i]!=reference[i];
+   if(const char* dir=std::getenv("STRATA_GLM_HIP_DIAGDIR")){
+    const auto dump=[&](const char* suffix,const void* data){
+     const std::string name=std::string(dir)+"/upload-"+std::to_string(key)+suffix;
+     if(FILE* f=std::fopen(name.c_str(),"wb")){std::fwrite(data,1,bytes,f);std::fclose(f);}
+    };
+    dump("-expected.bin",reference.data());dump("-gpu.bin",back);dump("-source.bin",blob);
+   }
+   if(err&&cap)std::snprintf(err,cap,"GLM HIP: upload check failed key=%d pool_offset=%zu bytes=%zu gpu_differences=%zu repeated=%zu source_changes=%zu first=%zu expected=%u actual=%u reread=%u",
+                           key,h->used,bytes,differences,repeated,source_changes,at,(unsigned)reference[at],first,(unsigned)back[at]);
+   return 1;
+  }
  }
  h->slots[key]={h->used,bytes};h->used+=stride;return 0;
 }
@@ -94,8 +137,7 @@ int glmh_read_bytes(glmh* h,int key,size_t off,size_t bytes,void* out,char* err,
  if(!h||!out||!bytes||key<0||(size_t)key>=h->slots.size()||!h->slots[key].bytes||off>h->slots[key].bytes||bytes>h->slots[key].bytes-off)return fail(err,cap,"GLM HIP: invalid expert readback");
  if(!ck(cudaSetDevice(h->device),err,cap))return 1;
  // The caller may be CUDA-pinned: HIP owns its DMA endpoint, then copies on the host.
- if(bytes>h->transfer_bytes){if(h->transfer_pin)cudaFreeHost(h->transfer_pin);h->transfer_pin=nullptr;h->transfer_bytes=0;
-  size_t n=(bytes+4095)&~size_t(4095);if(!ck(cudaHostAlloc(&h->transfer_pin,n,cudaHostAllocDefault),err,cap))return 1;h->transfer_bytes=n;}
+ if(!transfer_room(h,bytes,err,cap))return 1;
  if(!ck(cudaMemcpyAsync(h->transfer_pin,h->pool+h->slots[key].offset+off,bytes,cudaMemcpyDeviceToHost,h->stream),err,cap)||!ck(cudaStreamSynchronize(h->stream),err,cap))return 1;
  std::memcpy(out,h->transfer_pin,bytes);return 0;
 }

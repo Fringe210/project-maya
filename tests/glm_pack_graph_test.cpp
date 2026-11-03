@@ -19,10 +19,11 @@ static void require(bool ok, const std::string& msg) {
     if (!ok) { std::fprintf(stderr, "glm_pack_graph_test: %s\n", msg.c_str()); std::exit(1); }
 }
 int main(int argc, char** argv) {
-    if (argc != 3) { std::fprintf(stderr, "usage: glm_pack_graph_test PACK CAPACITY\n"); return 2; }
+    if (argc != 3 && argc != 4) { std::fprintf(stderr, "usage: glm_pack_graph_test PACK CAPACITY [EXPERT_PROFILE]\n"); return 2; }
     strata::core::Glm5Model model;
     std::string err;
     graph_mode(false);
+    if (argc == 4) model.set_expert_profile(argv[3]);
     require(model.load_pack_env(argv[1], std::atoll(argv[2]), err), err);
     require(model.fast() && model.n_parts_ == 1, "requires a single-device fast pack");
     require(!model.has_mtp(), "MTP must be absent: the graph path deliberately bypasses MTP");
@@ -83,6 +84,14 @@ int main(int argc, char** argv) {
         require(std::memcmp(logits.data(), direct.data() + (size_t) t * V, V * 4) == 0,
                 "reset/residual graph parity differs at step " + std::to_string(t));
         ++comparisons;
+    }
+    if (std::getenv("STRATA_GLM_HIP_HELPER") != nullptr) {
+        const auto stats = model.fast_stats();
+        require(model.helper_slots() > 0 && stats.helper_experts > 0, "HIP helper was not exercised");
+        require(!stats.helper_dead && stats.helper_fallback == 0 && stats.cpu_experts == 0,
+                "HIP helper failed or used CPU expert fallback");
+        std::printf("glm_pack_graph_test: HIP helper active (%llu expert computations), CPU expert fallback absent\n",
+                    (unsigned long long) stats.helper_experts);
     }
     std::printf("glm_pack_graph_test: PASS (%llu actual-pack full-vocabulary bitwise comparisons, snapshots/reset; %llu mixed-plan finite/liveness steps)\n",
                 (unsigned long long) comparisons, (unsigned long long) mixed_steps);
