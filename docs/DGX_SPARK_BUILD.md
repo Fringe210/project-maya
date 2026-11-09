@@ -50,8 +50,8 @@ provides; the licence notices stay with every copy (`third_party/*/LICENSE`).
 | `tools/` | the packer (`iq_pack.py`), the installer (`maya.py`, `setup.py`), the benchmark, the parity tests |
 | `ref/glm.py`, `ref/load.py` | **Maya's own Python reference forward pass** for the architecture, one op at a time - the specification the C++ kernels are parity-tested against (it is written from the upstream snapshot below) |
 
-Maya's engine started from **Strata** ([Niko1221/Strata](https://github.com/Niko1221/Strata), MIT) and was rewritten
-for GLM-5.3-Flash; its server and dashboard grew from Strata's too.
+Maya's engine started from an MIT-licensed upstream engine ([source](https://github.com/Niko1221/Strata)) and was rewritten
+for GLM-5.3-Flash; its server and dashboard grew from it too.
 
 ### What is taken from other projects
 
@@ -87,7 +87,7 @@ CPU expert kernels**, the expert profile, the layer split, KV streaming, convers
 DFlash2 drafting.
 
 **The AMD (HIP) port, and the unified-memory policy.** Before this build, Maya already ran on a machine whose GPU
-memory is the system's RAM: **AMD's Ryzen AI Max / Strix Halo APUs on Linux** (the experimental HIP path, measured and
+memory is the system's RAM: **AMD's Ryzen AI Max / Strix Halo APUs on Linux** (the HIP path, measured and
 documented in `docs/AMD_MAYA.md`). That port established the policy this build reuses - size the expert pool from
 `/proc/meminfo`'s `MemAvailable` rather than the runtime's free figure, because on a unified device the runtime
 counts the model's page cache as used. Our change lifts that policy from "AMD only" to "any device whose memory is

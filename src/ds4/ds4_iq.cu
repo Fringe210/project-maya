@@ -2,6 +2,7 @@
 // ggml's (ggml-common.h, MIT, third_party/ggml/LICENSE); the sign and grid tricks are llama.cpp's vecdotq.cuh.
 #include "ds4_iq.cuh"
 #include "ds4_iq1_codes.hpp"
+#include "ds4_par_exp.h"
 #include "ds4_pdl.cuh"
 #if defined(STRATA_USE_HIP) && !defined(MAYA_DS4_IQ_ONLY)   // (#354; maya-mm3 builds ds4_iq.cu without it)
 #include "strata/prefill/moe_mmq.hpp"
@@ -639,7 +640,41 @@ __device__ __forceinline__ void deq8(const uint8_t* __restrict__ row, int kb, in
     }
 }
 
+#if defined(STRATA_USE_HIP) && defined(__gfx906__)
+__device__ __forceinline__ float hip_xor16(float v) {
+    return __builtin_bit_cast(float, __builtin_amdgcn_ds_swizzle(__builtin_bit_cast(int, v), 0x401f));
+}
+__device__ __forceinline__ float hip_xor8(float v) {
+    return __builtin_bit_cast(float, __builtin_amdgcn_ds_swizzle(__builtin_bit_cast(int, v), 0x201f));
+}
+__device__ __forceinline__ float hip_xor4(float v) {
+    return __builtin_bit_cast(float, __builtin_amdgcn_ds_swizzle(__builtin_bit_cast(int, v), 0x101f));
+}
+__device__ __forceinline__ float hip_xor2(float v) {
+    return __builtin_bit_cast(float, __builtin_amdgcn_update_dpp(0, __builtin_bit_cast(int, v), 0x4e, 0xf, 0xf, false));
+}
+__device__ __forceinline__ float hip_xor1(float v) {
+    return __builtin_bit_cast(float, __builtin_amdgcn_update_dpp(0, __builtin_bit_cast(int, v), 0xb1, 0xf, 0xf, false));
+}
+#endif
+
 __device__ __forceinline__ float warp_sum(float v) {
+#if defined(STRATA_USE_HIP) && defined(__gfx906__)
+#if DS4_IQ_STRICT_FP
+    v = fadd_no_fma(v, hip_xor16(v));
+    v = fadd_no_fma(v, hip_xor8(v));
+    v = fadd_no_fma(v, hip_xor4(v));
+    v = fadd_no_fma(v, hip_xor2(v));
+    v = fadd_no_fma(v, hip_xor1(v));
+#else
+    v += hip_xor16(v);
+    v += hip_xor8(v);
+    v += hip_xor4(v);
+    v += hip_xor2(v);
+    v += hip_xor1(v);
+#endif
+    return v;
+#else
 #pragma unroll
 #if DS4_IQ_STRICT_FP
     for (int o = 16; o > 0; o >>= 1) v = fadd_no_fma(v, __shfl_xor_sync(0xffffffffu, v, o));
@@ -647,6 +682,7 @@ __device__ __forceinline__ float warp_sum(float v) {
     for (int o = 16; o > 0; o >>= 1) v += __shfl_xor_sync(0xffffffffu, v, o);
 #endif
     return v;
+#endif
 }
 __device__ __forceinline__ float swiglu(float gv, float uv, float limit) {   // (ds4_gguf.cu's)
     if (limit > 0.0f) {
@@ -670,8 +706,8 @@ __device__ __forceinline__ float swigluoai(float gv, float uv, float limit) {
 template <int EPI>
 constexpr bool kBoth = EPI < 2;   // (gate and up in this pass)
 template <int EPI>
-__device__ __forceinline__ float act_out(float gv, float uv, float limit) {
-    if constexpr (EPI == 0) return swiglu(gv, uv, limit);
+__device__ __forceinline__ float act_out(float gv, float uv, float limit, int pexp = 0) {
+    if constexpr (EPI == 0) return pexp ? strata::ds4::par::swiglu_portable(gv, uv, limit) : swiglu(gv, uv, limit);
     else return swigluoai(gv, uv, limit);
 }
 template <int EPI>
@@ -696,6 +732,22 @@ __device__ __forceinline__ bool group(const Args& a, int grp, const uint8_t*& bl
 // RW rows a warp, 32 / RW lanes a row (a lane a sub-block a step), their sums over those lanes
 template <int RW>
 __device__ __forceinline__ float lanes_sum(float v) {
+#if defined(STRATA_USE_HIP) && defined(__gfx906__)
+#if DS4_IQ_STRICT_FP
+    if constexpr (RW <= 1) v = fadd_no_fma(v, hip_xor16(v));
+    if constexpr (RW <= 2) v = fadd_no_fma(v, hip_xor8(v));
+    if constexpr (RW <= 4) v = fadd_no_fma(v, hip_xor4(v));
+    if constexpr (RW <= 8) v = fadd_no_fma(v, hip_xor2(v));
+    if constexpr (RW <= 16) v = fadd_no_fma(v, hip_xor1(v));
+#else
+    if constexpr (RW <= 1) v += hip_xor16(v);
+    if constexpr (RW <= 2) v += hip_xor8(v);
+    if constexpr (RW <= 4) v += hip_xor4(v);
+    if constexpr (RW <= 8) v += hip_xor2(v);
+    if constexpr (RW <= 16) v += hip_xor1(v);
+#endif
+    return v;
+#else
 #pragma unroll
 #if DS4_IQ_STRICT_FP
     for (int o = 16 / RW; o > 0; o >>= 1) v = fadd_no_fma(v, __shfl_xor_sync(0xffffffffu, v, o));
@@ -703,6 +755,7 @@ __device__ __forceinline__ float lanes_sum(float v) {
     for (int o = 16 / RW; o > 0; o >>= 1) v += __shfl_xor_sync(0xffffffffu, v, o);
 #endif
     return v;
+#endif
 }
 constexpr int kGuRW = 1, kDnRW = 2;   // rows a warp: gate / up (n_embd 5120: 10 sub-blocks a lane), down (2304: 9)
 
@@ -843,7 +896,7 @@ __global__ void __launch_bounds__(kThreads) gate_up_kernel(const Args a, int gro
                         float* hp = &a.h[(size_t) es[i] * a.n_ff + row];
                         if constexpr (TWO) {
                             const float gv = lanes_sum<RW>(ag[i]), uv = lanes_sum<RW>(au[i]);
-                            if (lane == 0) *hp = act_out<EPI>(gv, uv, a.limit);
+                            if (lane == 0) *hp = act_out<EPI>(gv, uv, a.limit, a.pexp);
                         } else {
                             const float v = lanes_sum<RW>(ag[i]);   // (EPI 2: the gate's sums; 3: the up's)
                             if (lane == 0) *hp = EPI == 2 ? v : swigluoai(*hp, v, a.limit);
@@ -1201,8 +1254,16 @@ __global__ void __launch_bounds__(kThreads) light_q8_kernel(const float* __restr
     const size_t at = (size_t) b * 32 + lane, qr = (size_t) blockIdx.y;
     const float v = xf != nullptr ? xf[(size_t) idx[lr] * ldx + at] : __half2float(__ushort_as_half(xh[(size_t) lr * ldx + at]));
     float am = fabsf(v);
+#if defined(STRATA_USE_HIP) && defined(__gfx906__)
+    am = fmaxf(am, hip_xor16(am));
+    am = fmaxf(am, hip_xor8(am));
+    am = fmaxf(am, hip_xor4(am));
+    am = fmaxf(am, hip_xor2(am));
+    am = fmaxf(am, hip_xor1(am));
+#else
 #pragma unroll
     for (int o = 16; o > 0; o >>= 1) am = fmaxf(am, __shfl_xor_sync(0xffffffffu, am, o));
+#endif
     const float sc = am / 127.0f;   // (ds4_gguf.cu's q8_quant: the same operations)
     q[qr * k + at] = (int8_t) (am > 0.0f ? __float2int_rn(v / sc) : 0);
     if (lane == 0) d[qr * (k / 32) + b] = sc;
@@ -1745,7 +1806,8 @@ void set_persist(int on) { g_persist_set.store(on < 0 ? -1 : on != 0 ? 1 : 0, st
 // Prompt expert sets through the existing GLM MMQ path (HIP, opt-in).
 // The same q8_1/MMA path the GLM prompt uses (strata::prefill::mmq): the packed expert is read once, activations are
 // rounded to q8_1, and the products run on int8 tensor cores.  Opt-in (MAYA_DS4_EXPERT_MMQ=1), sets of at least 32 rows;
-// smaller sets, unsupported shapes/types and allocation failure keep the FP32 tiled kernel above.
+// smaller sets, unsupported shapes/types and allocation failure keep the FP32 tiled kernel above.  MMQ launches a kernel a
+// matrix an expert, so an IQ1_S set's experts of few rows stay on the light kernels and the tiles (mmq_min_rows).
 namespace {
 thread_local int mmq_rows = 0;
 thread_local const int* mmq_host_bounds = nullptr;
@@ -1770,8 +1832,31 @@ bool mmq_on() {
     return enabled;
 }
 
+// the rows an expert needs to take MMQ; the set's others stay on the light kernels and the tiles, after it.
+// MAYA_DS4_EXPERT_MMQ_MIN sets it (1: every expert of the set); unset: 32 for IQ1_S, every expert for the other types
+int mmq_min_rows(int type) {
+    static const int set = [] {
+        const char* e = std::getenv("STRATA_DS4_EXPERT_MMQ_MIN");
+        if (e == nullptr) return 0;
+        const int n = std::atoi(e);
+        return n <= 1 ? 1 : std::max(n, kLightRows + 1);   // (the light kernels take every expert of up to kLightRows)
+    }();
+    return set > 0 ? set : type == kIQ1_S ? 32 : 1;
+}
+// the most rows of the set's experts MMQ leaves out (0: none)
+int mmq_rest_rows(const SetArgs& a, int type) {
+    int rest = 0;
+    for (int e = 0; e < a.n_exp; ++e) {
+        const int cnt = mmq_host_bounds[e + 1] - mmq_host_bounds[e];
+        if (cnt < mmq_min_rows(type)) rest = std::max(rest, cnt);
+    }
+    return rest;
+}
+
 bool mmq_wanted(const SetArgs& a, bool gate_up) {
-    if (!mmq_on() || a.max_rows < 32 || a.n_exp <= 0 || a.n_exp > 512 || !mmq_host_bounds || mmq_rows <= 0) return false;
+    // (skip_ge: the rest of a set MMQ has run, set_gate_up / set_down)
+    if (!mmq_on() || a.skip_ge > 0 || a.max_rows < 32 || a.n_exp <= 0 || a.n_exp > 512 || !mmq_host_bounds || mmq_rows <= 0)
+        return false;
     if (mmq_host_bounds[0] != a.row0 || mmq_host_bounds[a.n_exp] - a.row0 != mmq_rows) return false;
     for (int i = 0; i < a.n_exp; ++i) {
         const int rows = mmq_host_bounds[i + 1] - mmq_host_bounds[i];
@@ -1782,7 +1867,8 @@ bool mmq_wanted(const SetArgs& a, bool gate_up) {
     if (gate_up && a.ldx % 4 != 0) return false;   // the MMQ quantizer loads float4s
     if (gate_up ? (a.xf == nullptr || a.h == nullptr) : (a.xh == nullptr || a.y == nullptr)) return false;
     const int type = gate_up ? a.tg : a.td;
-    if (type != kIQ2_S && type != kIQ2_XXS && type != kIQ3_S && type != kIQ3_XXS) return false;
+    if (type != kIQ2_S && type != kIQ2_XXS && type != kIQ3_S && type != kIQ3_XXS && type != kIQ1_S) return false;
+    if (a.max_rows < mmq_min_rows(type)) return false;   // (no expert of the set would take it)
     if (!strata::prefill::mmq::built() || !strata::prefill::mmq::supported(gate_up ? a.tg : a.td)) return false;
     return true;
 }
@@ -1934,7 +2020,7 @@ bool mmq_gate_up(const SetArgs& a, cudaStream_t s) {
     const int* hb = mmq_host_bounds;
     for (int e = 0; e < a.n_exp; ++e) {
         const int cnt = hb[e + 1] - hb[e];
-        if (cnt <= 0) continue;
+        if (cnt <= 0 || cnt < mmq_min_rows(a.tg)) continue;   // (the rest: the light kernels and tiles, after this)
         p.n = 1;
         p.bounds = sc.b + e;
         p.max_rows = a.tg == kIQ2_S ? std::max(cnt, 32) : cnt;
@@ -1989,7 +2075,7 @@ bool mmq_down(const SetArgs& a, cudaStream_t s) {
     const int* hb = mmq_host_bounds;
     for (int e = 0; e < a.n_exp; ++e) {
         const int cnt = hb[e + 1] - hb[e];
-        if (cnt <= 0) continue;
+        if (cnt <= 0 || cnt < mmq_min_rows(a.td)) continue;   // (the rest: the light kernels and tiles, after this)
         p.n = 1;
         p.bounds = sc.b + e;
         p.max_rows = cnt;
@@ -2123,7 +2209,16 @@ bool set_gate_up(const SetArgs& a, cudaStream_t s) {
         std::fprintf(stderr, "ds4: the fused prompt experts could not run a set\n");
         std::abort();   // (its down would read H the FP16 tiles never wrote)
     }
-    if (mmq_wanted(a, true) && mmq_gate_up(a, s)) return true;
+    if (mmq_wanted(a, true) && mmq_gate_up(a, s)) {
+        static std::atomic<bool> said{false};
+        if (!said.exchange(true)) std::fprintf(stderr, "ds4: MMQ took a set's gate / up (type %d)\n", a.tg);
+        const int rest = mmq_rest_rows(a, a.tg);
+        if (rest == 0) return true;
+        SetArgs r = a;   // (the rest: MMQ's epilogue filled their H rows from nothing, and these overwrite them)
+        r.skip_ge = mmq_min_rows(a.tg);
+        r.max_rows = rest;
+        return set_gate_up(r, s);
+    }
 #endif
     if (!k_whole(a.n_embd, 0, a.tg, a.tu, 0) || a.n_ff % BN != 0) return false;
     if (split_gu(a) && a.graw == nullptr) return false;
@@ -2161,7 +2256,14 @@ bool set_down(const SetArgs& a, cudaStream_t s) {
         std::fprintf(stderr, "ds4: the fused prompt experts could not run a set's down\n");
         std::abort();   // (H is int8 here: the FP16 tiles cannot read it)
     }
-    if (mmq_wanted(a, false) && mmq_down(a, s)) return true;
+    if (mmq_wanted(a, false) && mmq_down(a, s)) {
+        const int rest = mmq_rest_rows(a, a.td);
+        if (rest == 0) return true;
+        SetArgs r = a;   // (the rest)
+        r.skip_ge = mmq_min_rows(a.td);
+        r.max_rows = rest;
+        return set_down(r, s);
+    }
 #endif
     if (a.n_ff % block_values(a.td) != 0 || a.n_embd % BN != 0) return false;
     SetArgs t = a;

@@ -47,16 +47,39 @@ function Banners({m}) {
 }
 
 // ------------------------------------------------------------------ the speed, and what is happening now
+// the prefill's peak: the highest live rate while a prompt is read, kept once its reading ends ("peak this request", then
+// "peak last request"), reset when the next reading starts.  n: the requests served when it was read - the request it
+// belongs to is the one running while that count stands, the last one finished once it is one more.  A request whose
+// reading this page did not see (too quick for a poll, or the page opened later) shows its final rate.
+const PF = {peak: null, reading: false, n: null};
+function prefillPeak(m) {
+  const live = m.live || {}, n = m.totals && m.totals.requests != null ? m.totals.requests : null;
+  if (live.state === "reading") {
+    if (!PF.reading) { PF.peak = null; PF.n = n; }
+    PF.reading = true;
+    if (live.prefill_tok_s_mean > 0) PF.peak = Math.max(PF.peak || 0, live.prefill_tok_s_mean);
+    return {rate: PF.peak, now: true};
+  }
+  PF.reading = false;
+  if (PF.peak == null || PF.n == null || n == null) return null;
+  if (live.state !== "idle" && n === PF.n) return {rate: PF.peak, now: false, label: "peak this request"};
+  if (live.state === "idle" && n === PF.n + 1) return {rate: PF.peak, now: false, label: "peak last request"};
+  return null;
+}
+
 function Throughput({m}) {
   const live = m.live || {}, h = m.history || {}, last = (m.requests || [])[0], eng = m.engine || {}, tn = m.tiers && m.tiers.now;
   const gen = live.state === "generating";
   const many = live.active > 1;                  // several answers at once (--parallel): their total, the graph's newest point
   const speed = many ? (h.tok_s || []).at(-1) : gen ? live.tok_s : last ? last.decode_tok_s : null;
-  // prefill: the engine's rate over the tokens it read (not the reused prefix), live while a request runs
-  const prefill = live.state !== "idle" ? live.prefill_tok_s_mean
+  // prefill: the engine's rate over the tokens it read (not the reused prefix): the peak of the reading this page saw
+  // (prefillPeak), else live while a request runs, else the last request's final rate
+  const pk = prefillPeak(m);
+  const prefill = pk && pk.rate != null ? pk.rate : live.state !== "idle" ? live.prefill_tok_s_mean
     : last ? (last.prefill_tok_s != null ? last.prefill_tok_s
               : last.prompt_ms > 0 ? Math.max(0, last.prompt_tokens - (last.reused || 0)) / (last.prompt_ms / 1000) : null)
     : null;
+  const pwhat = live.state === "reading" ? "reading now" : pk && pk.label ? pk.label : gen ? "this request" : last ? "last request" : "waiting";
   const fresh = tn && tn.time && Date.now() / 1000 - tn.time <= 30;
   const ms = gen && tn && tn.ms_tok ? tn.ms_tok : speed ? 1000 / speed : null;
   const hit = fresh && tn.vram_hit != null ? 100 * tn.vram_hit : last && last.hit_rate != null ? 100 * last.hit_rate : null;
@@ -69,16 +92,18 @@ function Throughput({m}) {
   const when = peak ? new Date(peak.time * 1000) : null;
   const at = when ? when.toLocaleString([], new Date().toDateString() === when.toDateString()
     ? {hour: "2-digit", minute: "2-digit"} : {weekday: "short", hour: "2-digit", minute: "2-digit"}) : "";
-  return html`<section class="card card--wide" aria-label="Throughput">
+  // (as v1.1.52: the two figures side by side over one chart - decode the area and line, prefill the dashed line)
+  return html`<section class="card card--wide tp" aria-label="Throughput">
+    <div class="card__head"><span class="card__title">Throughput</span>${a || b ? html`<span class="card__sub">the last minute</span>` : null}</div>
     <div class="speeds">
       <div class="speed"><span class="speed__label"><i class="key key--line"></i>Decode · ${many ? `${live.writing} writing` : gen ? "writing now" : live.state === "reading" ? "reading the prompt" : last ? "last request" : "waiting for a request"}</span>
         <div class="speed__row"><span class="speed__big num">${speed == null ? "–" : fmt(speed, 1)}<small>tok/s</small></span>
           ${/* the peak beside the live Decode (below it on a phone), small: a reference, not a second headline */ ""}
           <span class="speed__peak num" title=${peak ? `The highest decode speed since Maya started: ${fmt(peak.tok_s, 1)} tok/s at ${at}, ${fmt(peak.tokens)} tokens into the answer. Live speeds and finished answers count, from 32 tokens on.`
               : "The highest decode speed since Maya started. Live speeds and finished answers count, from 32 tokens on."}>Peak ${peak ? `${fmt(peak.tok_s, 1)} tok/s` : "–"}</span></div></div>
-      <div class="speed" title="Prompt tokens read per second (the prefill), counting only the tokens read - not the ones reused from the conversation cache">
-        <span class="speed__label"><i class="key key--dash"></i>Prefill · ${live.state === "reading" ? "reading now" : gen ? "this request" : last ? "last request" : "waiting"}</span>
-        <span class="speed__mid num">${prefill == null ? "–" : fmt(prefill)}<small>tok/s</small></span></div>
+      <div class="speed" title="Prompt tokens read per second (the prefill), counting only the tokens read - not the ones reused from the conversation cache. While a prompt is read and after: the highest rate of that reading.">
+        <span class="speed__label"><i class="key key--dash"></i>Prefill · ${pwhat}</span>
+        <div class="speed__row"><span class="speed__mid num">${prefill == null ? "–" : fmt(prefill)}<small>tok/s</small></span></div></div>
     </div>
     <div class=${`spark-wrap${a || b ? "" : " is-empty"}`}>
       <svg class="spark spark--hero" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
@@ -162,7 +187,7 @@ function ContextCard({m}) {
   // (the VRAM window is KV streaming's --kv-resident: Models > Engine settings > Prompts and cache, GLM and MiniMax alike)
   const W = ctxfmt(win), where = showWin
     ? "The window is a setting: Models › Engine settings › Prompts and cache › Positions each layer keeps in VRAM."
-    : "The size is a setting: Settings › Model › Context size.";
+    : "The size is a setting: Settings › Chat defaults › Context size.";
   const note = !running && !last ? "No conversation yet: the context fills as a chat goes on, with every message, file and tool result in it."
     : showWin ? (used > win ? `This chat is past the ${W} VRAM window: its cache is kept in RAM (about ${fmt((used * 12288) / 1e9, 1)} GB), ${W} tokens of it in GPU memory and the rest copied in when needed.`
                             : `VRAM window: a chat up to ${W} tokens keeps its whole cache in GPU memory. A longer one keeps it in RAM, ${W} tokens of it in GPU memory and the rest copied in when needed.`)
@@ -203,20 +228,46 @@ const TIER_SETS = {
     {key: "disk", label: "From SSD", unit: "/tok", digits: 2, tone: "warn", sub: "experts read from the SSD"},
     {key: "promo", label: "Promoted", unit: "/tok", digits: 2, sub: "experts copied into the VRAM cache"},
   ],
-  // CYBER-FROST (the maya engine's Qwen path): the CPU computes the experts VRAM does not hold, from RAM or read from the
-  // model file; the drafts' windows count too
+  // the maya engine's Qwen path (CYBER-FROST, Qwen3.8-Flash-Next): the CPU computes the experts VRAM does not hold, from
+  // RAM or read from the model file - its "disk" counts every expert read from the file, through the page cache or from
+  // the SSD (the engine cannot tell which); the drafts' windows count too
   qwen: [
     {key: "ram_fetch", label: "From RAM", unit: "/tok", digits: 1, tone: "info", sub: "experts the CPU computed from RAM"},
-    {key: "disk", label: "From SSD", unit: "/tok", digits: 2, tone: "warn", sub: "experts read from the model file"},
+    {key: "disk", label: "From the model file", unit: "/tok", digits: 2, tone: "warn",
+     sub: "experts read from the model file (page cache or SSD)"},
   ],
 };
-function Tiers({t, eng}) {
-  if (!t || !t.now) return null;
+export const tierSet = (eng) => TIER_SETS[eng && eng.engine_kind === "ds4" ? "ds4" : eng && eng.engine_kind === "mm3" ? "mm3"
+                                           : eng && eng.engine_kind === "qwen" ? "qwen" : "glm"];
+// the card's advice, from the live reading n (stale: the last answer's), the SSD-only share (disk: experts with no home
+// in VRAM or RAM) and the helper pool.  The "more RAM" advice only where experts really live on the SSD alone: a model
+// read from its file (Qwen) can count file reads while every expert has a home in VRAM or RAM
+export function tierTip(n, eng, {stale = false, disk = 0, helper = false} = {}) {
   const ds4 = !!(eng && eng.engine_kind === "ds4"), mm3 = !!(eng && eng.engine_kind === "mm3");
   const qwen = !!(eng && eng.engine_kind === "qwen");
-  const set = TIER_SETS[ds4 ? "ds4" : mm3 ? "mm3" : qwen ? "qwen" : "glm"];
+  if (stale) return "";
+  if (ds4) {
+    if (n.disk_mb != null && n.disk_mb >= 500) return "Much of every token is read from the SSD: more RAM keeps more of the model's experts cached, and answers get faster.";
+    if (n.vram_hit != null && n.vram_hit < 0.5)
+      return helper && !n.helper_dead ? "Most selections miss the primary cache; the helper handles some before CPU fallback."
+                                      : "Most experts run on the CPU: more VRAM (or a second GPU) keeps more of them on the card.";
+    return "";
+  }
+  if (n.disk != null && n.disk >= 3 && disk > 0)
+    return "Many experts are read from the SSD for every token: more RAM, a smaller model or a shorter context makes answers faster.";
+  if (mm3 || qwen) {   // (MiniMax, Qwen: the CPU computes the experts VRAM does not hold)
+    return n.vram_hit != null && n.vram_hit < 0.5 ? "Most experts run on the CPU: more VRAM (or a second GPU) keeps more of them on the card." : "";
+  }
+  if (n.vram_hit != null && n.vram_hit < 0.85 && (n.ram_fetch || 0) >= 4)
+    return "Most misses come from RAM over PCIe: more VRAM (or a second GPU) keeps more experts on the card.";
+  return "";
+}
+function Tiers({t, eng}) {
+  if (!t || !t.now) return null;
+  const ds4 = !!(eng && eng.engine_kind === "ds4");
+  const set = tierSet(eng);
   const n = t.now, h = t.history || {};
-  const helper = (ds4 || mm3 || eng.engine_kind === "glm-fast") && ((n.helper_held || 0) > 0 || (n.helper || 0) > 0 || +eng.helper_allocated_bytes > 0);
+  const helper = (ds4 || (eng && eng.engine_kind === "mm3") || (eng && eng.engine_kind === "glm-fast")) && ((n.helper_held || 0) > 0 || (n.helper || 0) > 0 || +eng.helper_allocated_bytes > 0);
   const helperHeld = n.helper_held != null ? n.helper_held : n.helper_slots != null ? n.helper_slots : +eng.helper_slots || 0;
   const age = n.time ? Math.max(0, Date.now() / 1000 - n.time) : null;
   const stale = age != null && age > 30;               // a reading from the last answer, not live
@@ -225,19 +276,7 @@ function Tiers({t, eng}) {
   const helperCopies = fullGpu ? Math.max(0, (+eng.helper_slots || helperHeld) - helperHeld) : 0;
   let {vu, ru, total, disk, vramGb, ramGb, diskGb} = tierShares(n, eng || {});
   if(fullGpu){ru=helperHeld;total=vu+ru;disk=0;ramGb=(+eng.helper_allocated_bytes||0)/1073741824;diskGb=0;}
-  let tip = "";
-  if (ds4) {
-    if (!stale && n.disk_mb != null && n.disk_mb >= 500) tip = "Much of every token is read from the SSD: more RAM keeps more of the model's experts cached, and answers get faster.";
-    else if (!stale && n.vram_hit != null && n.vram_hit < 0.5)
-      tip = helper && !n.helper_dead ? "Most selections miss the primary cache; the helper handles some before CPU fallback."
-                   : "Most experts run on the CPU: more VRAM (or a second GPU) keeps more of them on the card.";
-  } else if (!stale && n.disk != null && n.disk >= 3) {
-    tip = "Many experts are read from the SSD for every token: more RAM, a smaller model or a shorter context makes answers faster.";
-  } else if (mm3 || qwen) {   // (MiniMax, CYBER-FROST: the CPU computes the experts VRAM does not hold)
-    if (!stale && n.vram_hit != null && n.vram_hit < 0.5) tip = "Most experts run on the CPU: more VRAM (or a second GPU) keeps more of them on the card.";
-  } else if (!stale && n.vram_hit != null && n.vram_hit < 0.85 && (n.ram_fetch || 0) >= 4) {
-    tip = "Most misses come from RAM over PCIe: more VRAM (or a second GPU) keeps more experts on the card.";
-  }
+  const tip = fullGpu ? "" : tierTip(n, eng, {stale, disk, helper});
   const pc = (x) => (100 * x) / total;
   return html`<section class=${`card${stale ? " is-stale" : ""}`} aria-label="Where the experts live">
     <div class="card__head"><span class="card__title">${fullGpu ? "Experts in GPU memory" : helper ? "Primary cache and RAM backing" : "Where the experts live"}</span>
@@ -346,6 +385,23 @@ function gpuDetail(g, segs, m) {
     <i class=${`sw${s.key === "free" ? " sw--free" : ""}`} style=${`--gm-c:var(--gm-${s.key})`}></i><span>${s.label}</span>
     <b class="num">${gpuGb(s.bytes)}</b><span class="gpulegend__sub">${sub[s.key] || ""}</span></div>`)}</div>`;
 }
+// Free VRAM the next start's expert pool can use.  A tensor-parallel group's members hold the same expert slots, so
+// only the group's least free (tp_room, serve/gpu_map.py) grows them, counted once a group; a member's room beyond
+// it stays idle - a restart gives no experts there, a DSpark block moved onto it (MAYA_DS4_DRAFT_DEV) can use it.
+export function freeAdvice(frees, map, eng, where, pools, more) {
+  const room = (g) => (g.tp_room != null ? Math.min(g.free, g.tp_room) : g.free);
+  const grow = frees.filter((g) => room(g) >= 2 * GIB), idle = frees.filter((g) => g.free - room(g) >= 2 * GIB);
+  const seen = new Set(), out = [];
+  const n = grow.reduce((a, g) => { const k = g.tp_group ?? gpuKey(g); if (seen.has(k)) return a; seen.add(k); return a + more(g, room(g) - GIB); }, 0);
+  if (grow.length) out.push(`${gb(grow.reduce((a, g) => a + room(g), 0))} GB of ${where(grow)} are free: a restart gives ${pools(grow)} about ${fmt(n)} more experts.`);
+  if (idle.length) {
+    const draft = eng.engine_kind === "ds4" && map.some((g) => (g.parts || {}).drafter > 0);
+    out.push(`${gb(idle.reduce((a, g) => a + g.free - room(g), 0))} GB of ${where(idle)} sit idle: ` +
+      `the members of a tensor-parallel group hold the same expert slots and ${idle.length > 1 ? "their partners are" : "its partner is"} full, so a restart gives no more experts there` +
+      (draft ? `; moving DSpark drafter blocks onto ${idle.length > 1 ? "them" : "it"} (MAYA_DS4_DRAFT_DEV, see docs/SETTINGS.md) uses that room.` : "."));
+  }
+  return out.join(" ");
+}
 function GpuMap({m}) {
   const [open, setOpen] = useState(store.get("gpu-open", null));   // the row opened (several GPUs), remembered here
   const [focus, setFocus] = useState(null), [tip, setTip] = useState(null);
@@ -389,8 +445,7 @@ function GpuMap({m}) {
     const b = others.reduce((a, g) => a + g.parts.other, 0), n = others.reduce((a, g) => a + more(g, g.parts.other), 0);
     advice = `Other programs hold ${gb(b)} GB on ${where(others)}: with them closed, a restart gives ${pools(others)} about ${fmt(n)} more experts.`;
   } else if (frees.length) {
-    const b = frees.reduce((a, g) => a + g.free, 0), n = frees.reduce((a, g) => a + more(g, g.free - GIB), 0);
-    advice = `${gb(b)} GB of ${where(frees)} are free: a restart gives ${pools(frees)} about ${fmt(n)} more experts.`;
+    advice = freeAdvice(frees, map, eng, where, pools, more);
   }
   const pick = (k) => { const v = open === k ? null : k; setOpen(v); store.set("gpu-open", v); };
   const move = (e, r) => {

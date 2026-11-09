@@ -50,13 +50,40 @@ __device__ __forceinline__ uint16_t f2bf16(float f) {   // round to nearest even
     return (uint16_t) (u >> 16);
 }
 
+#if defined(STRATA_USE_HIP) && defined(__gfx906__)
+template<int Mask> __device__ __forceinline__ float ds4_lane_swizzle(float v) {
+    return __builtin_bit_cast(float, __builtin_amdgcn_ds_swizzle(__builtin_bit_cast(int, v), Mask));
+}
+template<int Ctrl> __device__ __forceinline__ float ds4_lane_dpp(float v) {
+    return __builtin_bit_cast(float, __builtin_amdgcn_update_dpp(0, __builtin_bit_cast(int, v), Ctrl, 0xf, 0xf, false));
+}
+#endif
+
 __device__ __forceinline__ float warp_sum(float v) {
+#if defined(STRATA_USE_HIP) && defined(__gfx906__)
+    v += ds4_lane_swizzle<0x401f>(v);
+    v += ds4_lane_swizzle<0x201f>(v);
+    v += ds4_lane_swizzle<0x101f>(v);
+    v += ds4_lane_dpp<0x4e>(v);
+    v += ds4_lane_dpp<0xb1>(v);
+    return v;
+#else
     for (int o = 16; o > 0; o >>= 1) v += __shfl_xor_sync(0xffffffffu, v, o);
     return v;
+#endif
 }
 __device__ __forceinline__ float warp_max(float v) {
+#if defined(STRATA_USE_HIP) && defined(__gfx906__)
+    v = fmaxf(v, ds4_lane_swizzle<0x401f>(v));
+    v = fmaxf(v, ds4_lane_swizzle<0x201f>(v));
+    v = fmaxf(v, ds4_lane_swizzle<0x101f>(v));
+    v = fmaxf(v, ds4_lane_dpp<0x4e>(v));
+    v = fmaxf(v, ds4_lane_dpp<0xb1>(v));
+    return v;
+#else
     for (int o = 16; o > 0; o >>= 1) v = fmaxf(v, __shfl_xor_sync(0xffffffffu, v, o));
     return v;
+#endif
 }
 
 // block-wide sum for blockDim.x <= 1024 (a multiple of 32); every thread gets the result
@@ -3068,7 +3095,7 @@ __global__ void publish_kernel(Req* req, int T, unsigned seq, int na0, int na1, 
     const int any = *(volatile int*) cpu_any;
     *cpu_any = 0;
     if (any || (int) (seq - *(volatile const unsigned*) host_done) >= kRing / 2) return;
-    for (int t = 0; t < T; ++t) resp->cpu[t] = 0;
+    for (int t = 0; t < T; ++t) resp->cpu[t] = 0, resp->pmask[t] = 0;
     __threadfence_system();
     *(volatile unsigned*) &resp->seq = seq;
 }
@@ -3890,6 +3917,42 @@ void moe_sort(const int* idx, int T, int k, const int* vs, int n_vs, int* bounds
     pdl_launch(bounds_scan_kernel, 1, 32, 0, s, bounds, n_vs);
     pdl_launch(moe_sort_kernel<true>, n_vs, kThreads, 0, s, idx, T, k, vs, bounds, row_tok, pos);
 }
+// (DS4_LANE_PARITY) the prompt path's expert sum in exact fixed point: each pick's w y (exact in F64) times 2^32,
+// rounded to an integer once, summed in int64 - an exact, order-free sum, so the sets' order (VRAM slots first, then
+// the streamed ones as they land: the placement's) no longer changes a bit of it; moe_x_finish adds it to acc after the
+// layer's last set
+__global__ void moe_combine_x_kernel(long long* acc, const float* __restrict__ y, const int* __restrict__ pos,
+                                     const float* __restrict__ w, int k, int r0, int r1, int dim) {
+    pdl_wait();
+    pdl_trigger();
+    const int e = blockIdx.x * blockDim.x + threadIdx.x, t = blockIdx.y;
+    if (e >= dim) return;
+    long long a = 0;
+    bool any = false;
+    for (int i = 0; i < k; ++i) {
+        const int r = pos[(size_t) t * kPicks + i];
+        if (r < r0 || r >= r1) continue;
+        const double p = (double) w[(size_t) t * kPicks + i] * (double) y[(size_t) (r - r0) * dim + e];
+        a += __double2ll_rn(p * 4294967296.0);
+        any = true;
+    }
+    if (any) acc[(size_t) t * dim + e] += a;
+}
+__global__ void moe_x_finish_kernel(float* acc, const long long* __restrict__ acc64, size_t n) {
+    pdl_wait();
+    pdl_trigger();
+    const size_t i = (size_t) blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+    acc[i] = __fadd_rn(acc[i], __double2float_rn((double) acc64[i] * 2.3283064365386962890625e-10));
+}
+void moe_combine_x(long long* acc, const float* y, const int* pos, const float* w, int T, int k, int r0, int r1,
+                   int dim, cudaStream_t s) {
+    if (r1 > r0 && T > 0)
+        pdl_launch(moe_combine_x_kernel, dim3(cdiv(dim, kThreads), T), kThreads, 0, s, acc, y, pos, w, k, r0, r1, dim);
+}
+void moe_x_finish(float* acc, const long long* acc64, size_t n, cudaStream_t s) {
+    if (n > 0) pdl_launch(moe_x_finish_kernel, (unsigned) ((n + kThreads - 1) / kThreads), kThreads, 0, s, acc, acc64, n);
+}
 void moe_combine(float* acc, const float* y, const int* pos, const float* w, int T, int k, int r0, int r1, int dim,
                  cudaStream_t s) {
     if (r1 > r0 && T > 0) pdl_launch(moe_combine_kernel, dim3(cdiv(dim, kThreads), T), kThreads, 0, s, acc, y, pos, w, k, r0, r1, dim);
@@ -3898,6 +3961,35 @@ void moe_combine(float* acc, const float* y, const int* pos, const float* w, int
 void gemv_f16(const uint16_t* W, const float* x, int n, int k, int T, float alpha, float* y, cudaStream_t s) {
     pdl_launch(gemv_f16_kernel, dim3(cdiv(n, kThreads / 32), T), kThreads, 0, s, W, x, n, k, alpha, y);
 }
+#if defined(STRATA_USE_HIP)
+// DS4_PROMPT_F16 (ds4_model.cu's prompt_f16): float c overwrites halves 2c and 2c + 1, so
+// a row is walked from its end in blocks of 256 values: a block's halves read into registers, the block synced, then its
+// floats written - they only cover halves of blocks already read
+__device__ unsigned long long g_widen_bad = 0;
+__global__ void __launch_bounds__(kThreads) widen_rows_f16_kernel(float* y0, int n, size_t ldy, int count_bad) {
+    float* y = y0 + (size_t) blockIdx.x * ldy;
+    const uint16_t* h = (const uint16_t*) y;
+    const int nb = (n + kThreads - 1) / kThreads;
+    for (int b = nb - 1; b >= 0; --b) {
+        const int c = b * kThreads + (int) threadIdx.x;
+        const float v = c < n ? __half2float(__ushort_as_half(h[c])) : 0.0f;
+        if (count_bad && c < n && !isfinite(v)) atomicAdd(&g_widen_bad, 1ull);
+        __syncthreads();
+        if (c < n) y[c] = v;
+        __syncthreads();
+    }
+}
+void widen_rows_f16(float* y, int n, size_t ldy, int rows, cudaStream_t s, int count_bad) {
+    if (rows > 0) pdl_launch(widen_rows_f16_kernel, dim3((unsigned) rows), kThreads, 0, s, y, n, ldy, count_bad);
+}
+unsigned long long widen_bad_take() {
+    unsigned long long bad = 0;
+    const unsigned long long zero = 0;
+    if (hipMemcpyFromSymbol(&bad, HIP_SYMBOL(g_widen_bad), sizeof bad) != hipSuccess) return 0;
+    if (bad != 0) (void) hipMemcpyToSymbol(HIP_SYMBOL(g_widen_bad), &zero, sizeof zero);
+    return bad;
+}
+#endif
 void gemv_f16_rows(const uint16_t* W, const float* x, size_t ldx, int n, int k, int T, float alpha, float* y, size_t ldy,
                    cudaStream_t s) {
     if (T > 0)
@@ -3989,9 +4081,25 @@ void index_score(const float* q, const float* w, const void* k, int heads, int h
         return;
     }
     if (n <= 0) return;
-    // (opt-in, DS4_INDEX_TC=1: its sums differ from the CUDA cores' in the last bits - perplexity the same, 7.5366 on
-    // 4 x 1024 tokens, but a long greedy run's tokens part after a while)
-    static const bool tc_ok = std::getenv("DS4_INDEX_TC") != nullptr && std::atoi(std::getenv("DS4_INDEX_TC")) != 0;
+    // The tensor cores' kernel (RDNA 3 / 3.5: its WMMAs) sums the same exact products in another order than the CUDA
+    // cores' one: the last bits differ and a long greedy run's tokens part after a while, the quality is the same
+    // (perplexity 7.5366 both on 4 x 1024 tokens; a Gorgon Halo, DeepSeek EXL3 2.25: KL to the full-precision model 0.1649
+    // against 0.1661, the same top token 91.08 / 91.07%) and long prompts read faster (+3 / +6 / +10% at 8K / 32K / 64K).
+    // HIP: on by default on gfx11 (other archs keep the CUDA cores' kernel), DS4_INDEX_TC=0 turns it off.
+    // CUDA: opt-in, DS4_INDEX_TC=1 (compute capability 8.0+).
+    static const int tc_env = [] {
+        const char* e = std::getenv("DS4_INDEX_TC");
+        return e == nullptr ? -1 : std::atoi(e) != 0 ? 1 : 0;
+    }();
+#if defined(STRATA_USE_HIP)
+    static const bool tc_ok = tc_env != 0;
+    if (tc_env == 0 && tc && kfmt == kKvFp4p) {
+        static std::atomic<bool> said{false};
+        if (!said.exchange(true)) std::fprintf(stderr, "ds4: the indexer's scores on the CUDA cores' kernel (DS4_INDEX_TC=0)\n");
+    }
+#else
+    static const bool tc_ok = tc_env == 1;
+#endif
     if (tc && tc_ok && kfmt == kKvFp4p) {   // (the tensor cores: a block a tile, looping, ~2 blocks an SM)
         static std::atomic<uint64_t> opted{0}, capable{0};   // (capable: compute capability 8.0+, CUDA - mma's int8; gfx11)
         static int sms[64] = {};
@@ -4012,9 +4120,12 @@ void index_score(const float* q, const float* w, const void* k, int heads, int h
             }
 #else
             (void) major;
-            cudaDeviceProp p{};   // (RDNA 3: the same kernel on its WMMAs - its shared memory below 64 KB, no opt-in)
-            if (cudaGetDeviceProperties(&p, dev) == cudaSuccess && std::strncmp(p.gcnArchName, "gfx11", 5) == 0)
+            cudaDeviceProp p{};   // (RDNA 3: the same kernel on its WMMAs - its shared memory below 64 KB, no attribute)
+            if (cudaGetDeviceProperties(&p, dev) == cudaSuccess && std::strncmp(p.gcnArchName, "gfx11", 5) == 0) {
                 capable.fetch_or(1ull << dev);
+                std::fprintf(stderr, "ds4: GPU%d (%s) the indexer's scores on the WMMAs (%s; DS4_INDEX_TC=0: off)\n", dev,
+                             p.gcnArchName, tc_env == 1 ? "DS4_INDEX_TC=1" : "the default on RDNA 3");
+            }
 #endif
             cudaDeviceGetAttribute(&sms[dev & 63], cudaDevAttrMultiProcessorCount, dev);
             opted.fetch_or(1ull << dev);

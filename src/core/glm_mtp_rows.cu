@@ -34,6 +34,7 @@
 #include "glm_rows_state.hpp"
 
 #include "strata/core/mtp_rows.hpp"
+#include "strata/core/glm_maya_sync.hpp"   // glm-dsa: glm_rows_ok (these rows are Flash kernels)
 #include "strata/kernels/sampler.hpp"
 
 #include "ggml.h"
@@ -122,6 +123,7 @@ size_t Glm5Model::mtpw_kin_offset(int il) const {
 
 bool Glm5Model::mtpw_alloc(std::string& err) {
     if (mtpw_ != nullptr || multi_mtp_setting() <= 0 || seq_.empty()) return true;
+    if (!glm_rows_ok(g_.arch)) return true;   // glm-dsa: the conversations draft one after the other (no MTP rows)
     const Glm5Geometry& g = g_;
     auto* M = new MtpRows();
     mtpw_ = M;
@@ -264,6 +266,7 @@ void Glm5Model::mtpw_destroy() {
 
 bool Glm5Model::mtpw_ok() const {
     if (multi_mtp_setting() <= 0 || seq_.empty()) return false;
+    if (!glm_rows_ok(g_.arch)) return false;   // glm-dsa: no MTP rows (mtpw_alloc made none)
     const Glm5Model* last = this;
     for (const Glm5Model* m = this; m != nullptr; m = m->split_next_.get()) {
         if (m->fast_ == nullptr || m->mtpw_ == nullptr || m->rows_ == nullptr) return false;
@@ -1086,8 +1089,10 @@ bool Glm5Model::mtpw_draft_queue(const int* seqs, const int* keep, int n, const 
         if (!glmfast::wait_event(M->ev_draft, "glm multi mtp drafts", err) || !F->route_ok(err)) return false;
         for (int c = 0; c < n; ++c)
             if (M->d_n[(size_t) c] > j) {
-                M->d_tok[(size_t) c] = F->mtp_tok_h[c];
-                M->d_out[(size_t) c * (size_t) (M->W - 1) + (size_t) j] = F->mtp_tok_h[c];
+                // (a draft that is no token id: the token before it in its place - glmfast::draft_id, #860)
+                M->d_tok[(size_t) c] = glmfast::draft_id(F->mtp_tok_h[c], M->d_tok[(size_t) c], g_.n_vocab,
+                                                         "glm multi mtp");
+                M->d_out[(size_t) c * (size_t) (M->W - 1) + (size_t) j] = M->d_tok[(size_t) c];
             }
     }
     const cudaError_t e = cudaGetLastError();
@@ -1110,7 +1115,9 @@ bool Glm5Model::mtpw_draft_take(int32_t* out, std::string& err) {
         if (!glmfast::wait_event(M->ev_draft, "glm multi mtp drafts", err) || !F->route_ok(err)) return false;
         const int j = M->d_max - 1;
         for (int c = 0; c < M->d_n_ctx; ++c)
-            if (M->d_n[(size_t) c] > j) M->d_out[(size_t) c * (size_t) (M->W - 1) + (size_t) j] = F->mtp_tok_h[c];
+            if (M->d_n[(size_t) c] > j)
+                M->d_out[(size_t) c * (size_t) (M->W - 1) + (size_t) j] =
+                    glmfast::draft_id(F->mtp_tok_h[c], M->d_tok[(size_t) c], g_.n_vocab, "glm multi mtp");
     }
     if (gf::launch_errors() > 0) {
         err = "glm multi mtp: " + std::to_string(gf::launch_errors()) + " kernel launch(es) failed (see stderr)";
