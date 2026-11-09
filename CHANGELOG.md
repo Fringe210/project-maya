@@ -6,7 +6,7 @@ only what changed and starts; the model is not downloaded again.
 
 ## Unreleased — single backend and CUDA + HIP experts
 
-- **v1.1.57 integration:** merge the published release while retaining the unified Windows CUDA/HIP backend, compact expert pools, exact conversation caches and multi-GPU telemetry. Keep native CUDA helper overlap separate from the HIP DLL dispatch. Preserve the local GLM FP16 KV behavior explicitly; DeepSeek/MiniMax profiles retain their context, cache and drafting policies. Builds and conflict decisions are recorded in [integration notes](docs/MERGE-V1.1.57.md); runtime tests await user authorization.
+- **v1.1.57 integration:** merge the published release while retaining the unified Windows CUDA/HIP backend, compact expert pools, exact conversation caches and multi-GPU telemetry. Keep native CUDA helper overlap separate from the HIP DLL dispatch. Preserve the local GLM FP16 KV behavior explicitly; DeepSeek/MiniMax profiles retain their context, cache and drafting policies. Builds and conflict decisions are recorded in [integration notes](docs/MERGE-V1.1.57.md); subsequently authorized DS4/GLM live checks retain exact reuse and comparable throughput; the full suite and MiniMax runtime checks remain deferred.
 
 - **v1.1.52 GLM graph checks:** primary CUDA graph OFF/ON tests at 262K with the HIP helper active and MTP off measure an observed 7–8% decode improvement, unchanged 16K prefill and exact context reuse. The same loaded model passes 192 full-vocabulary bitwise graph/direct comparisons. Keep production profiles unchanged. Harden helper upload DMA ownership and immutable byte-check diagnostics; intermittent initial-start mismatches remain documented, not silently bypassed. See [results and limits](docs/GLM-CUDA-GRAPHS.md).
 

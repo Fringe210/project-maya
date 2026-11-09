@@ -58,9 +58,44 @@ our pre-merge revision (line endings normalized for comparison).
   their contents are retained to avoid changing test inputs.
 - CUDA build: **passed**, CUDA 13.2 / sm_120, Release `maya-backend.exe` (exit 0).
 - HIP helper build: **passed**, HIP 6.4 / gfx1100, Release `maya-hhelper.dll` (exit 0); copied into build/ for the existing profiles. All previous DLL export names, including the three family ABIs and packed DS4 exports, are retained (static PE inspection).
-- **Runtime/numerical/throughput and regression tests are deliberately deferred at the user's request.** Compilation
-  and source inspection do not establish behavioral parity or speed for this merge. No model/server has been started.
+- **At the original build handoff, runtime tests were deferred at the user's request.** Compilation
+  and source inspection alone did not establish behavioral parity or speed. Subsequently authorized DS4/GLM live checks
+  are recorded below; the full regression suite and MiniMax runtime checks remain deferred.
 - Existing CUDA/HIP helper upload diagnostics remain enabled; the previously documented intermittent GLM mismatch
   is not declared root-caused or fixed by importing upstream's separate native-helper readback change.
 - GLM-5.3 744B is now included upstream, but our GGUF HIP helper's existing geometry restrictions remain;
   this merge does not qualify that new model on the mixed-vendor helper.
+
+## Subsequently authorized live checks (2026-11-09)
+
+The user authorized short checks after the merge. Production profiles were preserved; each model was left running
+at the end of its check (DeepSeek was subsequently closed before GLM was started). No full suite or 262K/512K stress
+run was performed. These are indicative live measurements, not frozen-placement old/new binary A/B results.
+
+| Check | v1.1.57 result | Historical matching reference |
+| --- | --- | --- |
+| DS4, 512K, DSpark, mmap-experts off, W7800 packed pool; six 320-token code answers | 73.97 tok/s overall | 75.37 tok/s (-1.85%) |
+| DS4, two code answers after a 16K reference | 83.0 and 78.3 tok/s | No matched post-document pair |
+| DS4, fresh reference | 16324 tokens at 936.9 tok/s | Different corpus; not a direct prefill A/B |
+| DS4, exact return after an unrelated request | 16323 reused, one read; full response 0.369 s | Exact-prefix behavior retained |
+| GLM, 262K, FP16 KV, W7800, no MTP; four measured 320-token code/prose answers after four warmups | 66.16 tok/s (code 64.51, prose 67.90) | 65.82 tok/s (+0.51%) |
+| GLM, two post-document code/prose answers | 60.56 tok/s | 60.51 tok/s |
+| GLM, fresh reference | 16338 tokens at 2631.9 tok/s | Historical 16K rate 2608.0; different corpus |
+| GLM, exact return after four unrelated requests | 16337 reused, one read; native prefill 19.9 ms, full response 0.636 s | Exact-prefix behavior retained |
+
+Both document returns retrieved all three codes correctly. GLM also returned the correct JSON squares of 1..20.
+GLM's configured startup check covered 84 sampled experts across all 42 MoE layers: maximum relative L2 error zero;
+the asynchronous landing byte checks passed too. No helper failure or fallback was observed. GLM reported zero
+runtime expert SSD bytes and zero speculative drafts; DS4 retained zero SSD-only expert residency. Engram I/O is
+separate and is not claimed to be zero.
+
+GLM's primary CUDA graphs remain **off**, matching its unchanged production profile and the v1.1.52 OFF reference;
+HIP helper graphs remain on. The historical 71.07 tok/s primary-graph-ON result is a different configuration.
+
+Maya reformatted GLM's JSON indentation at startup, causing the initial harness's final byte-equality assertion to
+fail after inference had completed. Parsed configurations are identical. The artifact harness now checks JSON values;
+no product/configuration fix or inference rerun was needed. This bookkeeping failure is distinct from model checks.
+
+Local, untracked evidence: `bench/results/ds4-v1157-quick-2026-11-09-152117/` and
+`bench/results/glm-v1157-quick-2026-11-09-152648/`. Machine-specific configurations, ZIP backups, logs and full outputs
+remain local rather than being added with this documentation update.
